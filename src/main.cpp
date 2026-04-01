@@ -194,7 +194,7 @@ void setup() {
   else if (ext == ROM_TYPE_NGP) {
       // --- Neo Geo Pocket / Color ---
       int machine = detectNeoGeoPocketFromRom(get_rom_ptr(), get_rom_size(), romPath);
-      run_ngp(get_rom_ptr(), get_rom_size(), machine);
+      run_ngp(get_rom_ptr(), get_rom_size(), romName.c_str(), machine);
   }
   else if (ext == ROM_TYPE_GENESIS) {
       // --- Megadrive / Genesis ---

@@ -11,6 +11,7 @@
 #include "ngc_input.h"
 #include "ngc_display.h"
 #include "ngc_scheduler.h"
+#include "ngc_save.h"
 // #include "ngc_bios.h"
 
 #define NGP_LANG_EN 1
@@ -123,10 +124,11 @@ static void map_vdp_tables_full()
   rasterY = scanlineY;
 }
 
-void run_ngp(const uint8_t* rom_base, size_t rom_size, int machine)
+void run_ngp(const uint8_t* rom_base, size_t rom_size, const char* rom_name, int machine)
 {
   // Load ROM
   ngp_mem_set_rom(rom_base, rom_size);
+  setFlashSize(rom_size);
 
   // Sys info
   m_emuInfo.machine = machine;
@@ -136,6 +138,8 @@ void run_ngp(const uint8_t* rom_base, size_t rom_size, int machine)
   // Core init
   Cz80_allocate_flag_tables();
   ngp_mem_init();
+  ngc_save_init(rom_name);
+  ngc_save_load();
 
   // Map VRAM/regs
   map_vdp_tables_full();
@@ -222,22 +226,24 @@ void run_ngp(const uint8_t* rom_base, size_t rom_size, int machine)
       #else
               tlcs_execute((CPU_CLOCK_HZ) / 60);
       #endif
-
+      
       // Pacing 60 Hz
       uint32_t emuUs = micros() - t0;
       frame_time_total += emuUs;
       if (emuUs < frame_time_min) frame_time_min = emuUs;
       if (emuUs > frame_time_max) frame_time_max = emuUs;
-
+      
       int32_t remaining = TARGET_US - emuUs;
       if (remaining > 0) {
         delayMicroseconds(remaining);
       }
       
-      // Log framerate
+      // Log framerate and do save tick
       frames++;
       if (millis() - status_last >= 2000)
       {
+          ngc_save_tick();
+
           size_t heap_free = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
           float avg_ms = frame_time_total / (float)frames / 1000.0f;
           float min_ms = frame_time_min / 1000.0f;

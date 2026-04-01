@@ -15,11 +15,11 @@ Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Sne
 | **Master System** | ✅ | ✅ | ✅ | ✅ | ✅ | Fully compatible |
 | **Game Gear**     | ✅ | ✅ | ✅ | ✅ | ✅ | Fully compatible |
 | **Mega Drive**    | ✅ | ✅ | ✅ | ✅ | ✅ | Some slowdown and not accurate sound in heavy titles |
+| **Neo Geo Pocket**| ✅ | ✅ | ✅ | ✅ | ✅ | Mono/color support. Some slowdown in heavy titles |
+| **PC Engine**     | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible |
 | **Atari 2600**    | ✅ | ✅ | N/A | ✅ | ✅ | Few mappers not supported |
 | **Atari 7800**    | ✅ | ✅ | N/A | ⚠️ | ✅ | Not full speed in most games |
 | **Lynx**          | ✅ | ✅ | ⚠️ | ✅ | ✅ | Some slowdown in heavy titles, Sound issues in some games  |
-| **PC Engine**     | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible |
-| **Neo Geo Pocket**| ✅ | ✅ | ⚠️ | ✅ | ✅ | Mono/color support. Some slowdown in heavy titles |
 | **WonderSwan**    | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | Mono/color support, not fullspeed (75FPS) in most games  |
 | **Super NES**     | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
 
