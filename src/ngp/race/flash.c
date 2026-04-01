@@ -40,6 +40,12 @@ unsigned char deviceID = 0x2F;
 unsigned char cartSize = 32;
 unsigned int bootBlockStartAddr = 0x1F0000;
 unsigned char bootBlockStartNum = 31;
+unsigned char ngpSaveBufActive = 0;
+unsigned char ngpSaveBufDirty = 0;
+unsigned char ngpSaveBufValid = 0;
+unsigned char ngpSaveBufChip = 0;
+unsigned char *ngpSaveBuf = NULL;
+static size_t saveBufSize = 0x10000;
 
 /* with selector, I get
 * writeSaveGameFile: Couldn't open Battery//mnt/sd/Games/race/ChryMast.ngf file
@@ -65,10 +71,9 @@ struct blockStruct
    unsigned int len;  /* length of following data */
 };
 
-#define MAX_BLOCKS 35 /* a 16m chip has 35 blocks (SA0-SA34) */
 unsigned char blocksDirty[2][MAX_BLOCKS];  /* max of 2 chips */
 unsigned char needToWriteFile = 0;
-char ngfFilename[1] = {0}; // unused
+char *ngfFilename = NULL;
 
 #define FLASH_WRITE 0
 #define FLASH_ERASE 1
@@ -174,272 +179,77 @@ unsigned int blockSize(unsigned char blockNum)
 
 void setupNGFfilename(void)
 {
-   int dotSpot = -1, pos = 0;
-   int slashSpot = -1;
+   const char *romName;
+   const char *slash;
+   const char *dot;
+   size_t dirLen, baseLen, needed;
+   char *newBuf;
 
-   strcpy(ngfFilename, SAVEGAME_DIR);
-
-   pos = strlen(m_emuInfo.RomFileName);
-
-   while(pos>=0)
-   {
-      if(m_emuInfo.RomFileName[pos] == path_default_slash_c())
-      {
-         slashSpot = pos;
-         break;
-      }
-
-      pos--;
-   }
-
-   strcat(ngfFilename, &m_emuInfo.RomFileName[slashSpot+1]);
-
-   for(pos=strlen(ngfFilename);pos>=0 && dotSpot == -1; pos--)
-   {
-      if(ngfFilename[pos] == '.')
-         dotSpot = pos;
-   }
-   if(dotSpot == -1)
+   romName = m_emuInfo.RomFileName;
+   if (!romName || !romName[0])
       return;
 
-   strcpy(&ngfFilename[dotSpot+1], "ngf");
-}
+   slash = strrchr(romName, path_default_slash_c());
+   if (slash)
+      romName = slash + 1;
 
-/* write all the dirty blocks out to a file */
-void writeSaveGameFile(void)
-{
-   /* find the dirty blocks and write them to the .NGF file */
-   int totalBlocks = bootBlockStartNum+4;
-   RFILE *ngfFile  = NULL;
-   int i;
+   dot = strrchr(romName, '.');
+   baseLen = dot ? (size_t)(dot - romName) : strlen(romName);
+   dirLen = strlen(SAVEGAME_DIR);
 
-   int64_t bytes;
-   struct NGFheaderStruct NGFheader;
-   struct blockStruct block;
+   needed = dirLen + baseLen + 4 + 1; /* ".ngf" + '\0' */
 
-   setupNGFfilename();
-
-   ngfFile = filestream_open(ngfFilename,
-         RETRO_VFS_FILE_ACCESS_WRITE,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE);
-   if(!ngfFile)
+   newBuf = (char*)realloc(ngfFilename, needed);
+   if (!newBuf)
       return;
 
-   NGFheader.version = 0x53;
-   NGFheader.numBlocks = 0;
-   NGFheader.fileLen = sizeof(struct NGFheaderStruct);
-   /* add them all up, first */
-   for(i=0;i<totalBlocks;i++)
-   {
-      if(blocksDirty[0][i])
-      {
-         NGFheader.numBlocks++;
-         NGFheader.fileLen += blockSize(i);
-      }
-   }
+   ngfFilename = newBuf;
 
-   if(cartSize == 32)  /* do the second chip, also */
-   {
-      for(i=0;i<totalBlocks;i++)
-      {
-         if(blocksDirty[1][i])
-         {
-            NGFheader.numBlocks++;
-            NGFheader.fileLen += blockSize(i);
-         }
-      }
-   }
-
-   NGFheader.fileLen += NGFheader.numBlocks * sizeof(struct blockStruct);
-
-   bytes = filestream_write(ngfFile, &NGFheader, sizeof(struct NGFheaderStruct));
-   if(bytes != sizeof(struct NGFheaderStruct))
-   {
-      filestream_close(ngfFile);
-      return;
-   }
-
-   for(i=0;i<totalBlocks;i++)
-   {
-      if(blocksDirty[0][i])
-      {
-         block.NGPCaddr = blockNumToAddr(0, i)+0x200000;
-         block.len = blockSize(i);
-
-         bytes = filestream_write(ngfFile, &block, sizeof(struct blockStruct));
-         if(bytes != sizeof(struct blockStruct))
-         {
-            filestream_close(ngfFile);
-            return;
-         }
-
-         bytes = filestream_write(ngfFile,
-               &mainrom[blockNumToAddr(0, i)], blockSize(i));
-         if(bytes != blockSize(i))
-         {
-            filestream_close(ngfFile);
-            return;
-         }
-      }
-   }
-
-   if(cartSize == 32)  /* do the second chip, also */
-   {
-      for(i=0;i<totalBlocks;i++)
-      {
-         if(blocksDirty[1][i])
-         {
-            block.NGPCaddr = blockNumToAddr(1, i)+0x600000;
-            block.len = blockSize(i);
-
-            bytes = filestream_write(ngfFile, &block, sizeof(struct blockStruct));
-            if(bytes != sizeof(struct blockStruct))
-            {
-               filestream_close(ngfFile);
-               return;
-            }
-
-            bytes = filestream_write(ngfFile,
-                  &mainrom[blockNumToAddr(1, i)], blockSize(i));
-            if(bytes != blockSize(i))
-            {
-               filestream_close(ngfFile);
-               return;
-            }
-         }
-      }
-   }
-
-   filestream_close(ngfFile);
-   needToWriteFile = 0;
-#ifdef TARGET_GP2X
-   sync();
-#endif
-}
-
-/* read the save-game file and overlay it onto mainrom */
-void loadSaveGameFile(void)
-{
-   /* find the NGF file and read it in */
-   RFILE *ngfFile = NULL;
-   int64_t bytes;
-   int i;
-   unsigned char *blocks;
-   void *blockMem;
-   struct NGFheaderStruct NGFheader;
-   struct blockStruct *blockHeader;
-
-   setupNGFfilename();
-
-   ngfFile = filestream_open(ngfFilename,
-         RETRO_VFS_FILE_ACCESS_READ,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE);
-   if(!ngfFile)
-      return;
-
-   bytes = filestream_read(ngfFile, &NGFheader, sizeof(struct NGFheaderStruct));
-   if(bytes != sizeof(struct NGFheaderStruct))
-   {
-      filestream_close(ngfFile);
-      return;
-   }
-
-   /*
-      unsigned short version;		// always 0x53?
-      unsigned short numBlocks;	// how many blocks are in the file
-      unsigned int fileLen;		// length of the file
-      */
-
-   if(NGFheader.version != 0x53)
-   {
-      filestream_close(ngfFile);
-      return;
-   }
-
-   blockMem = malloc(NGFheader.fileLen - sizeof(struct NGFheaderStruct));
-   /* error handling? */
-   if(!blockMem)
-      return;
-
-
-   blocks = (unsigned char *)blockMem;
-
-   bytes = filestream_read(ngfFile, blocks,
-         NGFheader.fileLen - sizeof(struct NGFheaderStruct));
-   filestream_close(ngfFile);
-
-   if(bytes != (NGFheader.fileLen - sizeof(struct NGFheaderStruct)))
-   {
-      free(blockMem);
-      return;
-   }
-
-   if(NGFheader.numBlocks > MAX_BLOCKS)
-   {
-      free(blockMem);
-      return;
-   }
-
-   /* loop through the blocks and insert them into mainrom */
-   for(i=0; i < NGFheader.numBlocks; i++)
-   {
-      blockHeader = (struct blockStruct*) blocks;
-      blocks += sizeof(struct blockStruct);
-
-      if(!((blockHeader->NGPCaddr >= 0x200000 && blockHeader->NGPCaddr < 0x400000)
-               ||
-               (blockHeader->NGPCaddr >= 0x800000 && blockHeader->NGPCaddr < 0xA00000) ))
-      {
-         free(blockMem);
-         return;
-      }
-      if(blockHeader->NGPCaddr >= 0x800000)
-      {
-         blockHeader->NGPCaddr -= 0x600000;
-         blocksDirty[1][blockNumFromAddr(blockHeader->NGPCaddr-0x200000)] = 1;
-      }
-      else if(blockHeader->NGPCaddr >= 0x200000)
-      {
-         blockHeader->NGPCaddr -= 0x200000;
-         blocksDirty[0][blockNumFromAddr(blockHeader->NGPCaddr)] = 1;
-      }
-
-      memcpy(&mainrom[blockHeader->NGPCaddr], blocks, blockHeader->len);
-
-      blocks += blockHeader->len;
-   }
-
-   free(blockMem);
-
+   memcpy(ngfFilename, SAVEGAME_DIR, dirLen);
+   memcpy(ngfFilename + dirLen, romName, baseLen);
+   memcpy(ngfFilename + dirLen + baseLen, ".ngf", 5);
 }
 
 void flashWriteByte(unsigned int addr, unsigned char data, unsigned char operation)
 {
-   if(blockNumFromAddr(addr) == 0)  /* hack because DWARP writes to bank 0 */
-      return;
-
-   /* set a dirty flag for the block that we are writing to */
+   unsigned char chip = 0;
+   unsigned int localAddr = addr;
+   unsigned int offset;
+   
    if(addr < 0x200000)
    {
+      chip = 0;
+      localAddr = addr;
       blocksDirty[0][blockNumFromAddr(addr)] = 1;
       needToWriteFile = 1;
    }
    else if(addr < 0x400000)
    {
+      chip = 1;
+      localAddr = addr - 0x200000;
       blocksDirty[1][blockNumFromAddr(addr)] = 1;
       needToWriteFile = 1;
    }
    else
-      return;  /* panic */
+      return;
 
-   /* changed to &= because it's actually how flash works
-    * flash memory can be erased (changed to 0xFF)
-    * and when written, 1s can become 0s, but you can't turn 0s into 1s (except by erasing)
-    */
-   // if(operation == FLASH_ERASE)
-   //    mainrom[addr] = 0xFF;		/* we're just erasing, so set to 0xFF */
-   // else
-   //    mainrom[addr] &= data;		/* actually writing data */
+   if(!ngpSaveBufActive)
+      return;
+
+   if(chip != ngpSaveBufChip)
+      return;
+
+   if(!ngpSaveIsLocalAddrInWindow(localAddr))
+      return;
+
+   offset = localAddr - bootBlockStartAddr;
+
+   if(operation == FLASH_ERASE)
+      ngpSaveBuf[offset] = 0xFF;
+   else
+      ngpSaveBuf[offset] &= data;
+
+   ngpSaveBufDirty = 1;
 }
 
 unsigned char flashReadInfo(unsigned int addr)
@@ -474,7 +284,7 @@ void flashChipWrite(unsigned int addr, unsigned char data)
          else if(data == 0xF0)
          {
             currentWriteCycle=1; /* this is a reset command */
-            writeSaveGameFile();
+            
          }
          else
             currentWriteCycle=1;
@@ -495,7 +305,7 @@ void flashChipWrite(unsigned int addr, unsigned char data)
          else if((addr & 0xFFFF) == 0x5555 && data == 0xF0)
          {
             currentWriteCycle=1;
-            writeSaveGameFile();
+            
          }
          else if((addr & 0xFFFF) == 0x5555 && data == 0x90)
          {
@@ -594,17 +404,36 @@ void flashChipWrite(unsigned int addr, unsigned char data)
 /* this should be called when a ROM is unloaded */
 void flashShutdown(void)
 {
-   writeSaveGameFile();
+   if (ngfFilename) {
+      free(ngfFilename);
+      ngfFilename = NULL;
+   }
+
+   if (ngpSaveBuf) {
+      if (ngpSaveBufDirty)
+         
+
+      free(ngpSaveBuf);
+      ngpSaveBuf = NULL;
+   }
+
+   
 }
 
 /* this should be called when a ROM is loaded */
 void flashStartup(void)
 {
-   memset(blocksDirty[0], 0, MAX_BLOCKS*sizeof(blocksDirty[0][0]));
-   memset(blocksDirty[1], 0, MAX_BLOCKS*sizeof(blocksDirty[0][0]));
-   needToWriteFile = 0;
+   if (!ngpSaveBuf) {
+      ngpSaveBuf = (uint8_t*)malloc(saveBufSize);
+   }
 
-   loadSaveGameFile();
+   if (ngpSaveBuf) {
+      memcpy(ngpSaveBuf, &mainrom[bootBlockStartAddr], saveBufSize);
+      ngpSaveBufDirty = false;
+      ngpSaveBufActive = true;
+   } else {
+      ngpSaveBufActive = false;
+   }
 }
 
 void vectFlashWrite(unsigned char chip, unsigned int to, unsigned char *fromAddr, unsigned int numBytes)
@@ -667,4 +496,62 @@ void setFlashSize(unsigned int romSize)
 
 
    flashStartup();
+}
+
+int ngpSaveDecodeCpuAddr(unsigned int cpuAddr, unsigned char *chip, unsigned int *localAddr)
+{
+   cpuAddr &= 0x00FFFFFF;
+
+   if(cpuAddr >= 0x00200000 && cpuAddr < 0x00400000)
+   {
+      *chip = 0;
+      *localAddr = cpuAddr - 0x00200000;
+      return 1;
+   }
+
+   if(cpuAddr >= 0x00800000 && cpuAddr < 0x00A00000)
+   {
+      *chip = 1;
+      *localAddr = cpuAddr - 0x00800000;
+      return 1;
+   }
+
+   return 0;
+}
+
+int ngpSaveIsLocalAddrInWindow(unsigned int localAddr)
+{
+   return (localAddr >= bootBlockStartAddr &&
+           localAddr < (bootBlockStartAddr + 0x10000));
+}
+
+int ngpSaveIsCpuAddrInWindow(unsigned int cpuAddr)
+{
+   unsigned char chip;
+   unsigned int localAddr;
+
+   if(!ngpSaveDecodeCpuAddr(cpuAddr, &chip, &localAddr))
+      return 0;
+
+   if(!ngpSaveIsLocalAddrInWindow(localAddr))
+      return 0;
+
+   if(!ngpSaveBufActive)
+      return 0;
+
+   if(chip != ngpSaveBufChip)
+      return 0;
+
+   return 1;
+}
+
+unsigned int ngpSaveCpuAddrToOffset(unsigned int cpuAddr)
+{
+   unsigned char chip;
+   unsigned int localAddr;
+
+   if(!ngpSaveDecodeCpuAddr(cpuAddr, &chip, &localAddr))
+      return 0;
+
+   return localAddr - bootBlockStartAddr;
 }

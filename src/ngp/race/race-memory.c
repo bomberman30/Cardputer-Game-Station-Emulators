@@ -437,7 +437,7 @@ void ngp_mem_init(void)
         if (!cpurom) for(;;){}
     }
     cpuram = &mainram[0];
-	memset(mainram,0,sizeof(mainram));
+	memset(mainram, 0, g_mainram_size);
     switch(m_emuInfo.machine) {
 	case NGP:
 	case NGPC:

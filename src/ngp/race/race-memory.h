@@ -104,12 +104,25 @@ static inline const unsigned char* get_address(unsigned int addr)
    else
    {
       if (addr<0x00400000)
-         return &mainrom[(addr-0x00200000) /*&cartAddrMask*/];
-      if(addr<0x00800000) /* Flavor added */
+      {
+         if (ngpSaveIsCpuAddrInWindow(addr))
+            return &ngpSaveBuf[ngpSaveCpuAddrToOffset(addr)];
+
+         return &mainrom[(addr-0x00200000)];
+      }
+
+      if(addr<0x00800000)
          return 0;
+
       if (addr<0x00A00000)
-         return &mainrom[(addr-(0x00800000-0x00200000))/*&cartAddrMask*/];
-      if(addr<0x00FF0000) /* Flavor added */
+      {
+         if (ngpSaveIsCpuAddrInWindow(addr))
+            return &ngpSaveBuf[ngpSaveCpuAddrToOffset(addr)];
+
+         return &mainrom[(addr-(0x00800000-0x00200000))];
+      }
+
+      if(addr<0x00FF0000)
          return 0;
 
       return &cpurom[addr-0x00ff0000];
@@ -153,18 +166,32 @@ static INLINE unsigned char tlcsMemReadB(unsigned int addr)
          return mainram[addr-0x00004000];
       }
    }
-	else
-	{
-		if (addr<0x00400000)
-            return mainrom[(addr-0x00200000)/*&cartAddrMask*/];
-		if (addr<0x00800000)
-            return 0xFF;
-		if (addr<0x00a00000)
-            return mainrom[(addr-(0x00800000-0x00200000))/*&cartAddrMask*/];
-		if (addr<0x00ff0000)
-            return 0xFF;
-		return cpurom[addr-0x00ff0000];
-	}
+   else
+   {
+      if (addr < 0x00400000)
+      {
+         if (ngpSaveIsCpuAddrInWindow(addr))
+               return ngpSaveBuf[ngpSaveCpuAddrToOffset(addr)];
+
+         return mainrom[(addr-0x00200000)];
+      }
+
+      if (addr < 0x00800000)
+         return 0xFF;
+
+      if (addr < 0x00A00000)
+      {
+         if (ngpSaveIsCpuAddrInWindow(addr))
+               return ngpSaveBuf[ngpSaveCpuAddrToOffset(addr)];
+
+         return mainrom[(addr-(0x00800000-0x00200000))];
+      }
+
+      if (addr < 0x00ff0000)
+         return 0xFF;
+
+      return cpurom[addr-0x00ff0000];
+   }
 	return 0xFF;
 }
 

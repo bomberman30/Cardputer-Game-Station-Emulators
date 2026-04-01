@@ -18,6 +18,7 @@
 #define COMMAND_BLOCK_ERASE     0x30
 #define COMMAND_CHIP_ERASE      0x10
 #define COMMAND_INFO_READ       0x90
+#define MAX_BLOCKS 35 /* a 16m chip has 35 blocks (SA0-SA34) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +28,18 @@ extern "C" {
 
 /* what command are we currently on (if any) */
 extern unsigned char currentCommand; 
+extern unsigned bootBlockStartAddr;
+extern unsigned char bootBlockStartNum;
+extern unsigned char blocksDirty[2][MAX_BLOCKS];
+extern unsigned char *ngpSaveBuf;
+extern unsigned char ngpSaveBufDirty;
+extern unsigned char ngpSaveBufActive;
+extern unsigned char ngpSaveBufChip;
+
+int ngpSaveDecodeCpuAddr(unsigned int cpuAddr, unsigned char *chip, unsigned int *localAddr);
+int ngpSaveIsLocalAddrInWindow(unsigned int localAddr);
+int ngpSaveIsCpuAddrInWindow(unsigned int cpuAddr);
+unsigned int ngpSaveCpuAddrToOffset(unsigned int cpuAddr);
 
 void flashChipWrite(unsigned int addr, unsigned char data);
 void vectFlashWrite(unsigned char chip, unsigned int to,
@@ -39,7 +52,6 @@ unsigned char flashReadInfo(unsigned int addr);
 void flashShutdown(void);
 
 extern unsigned char needToWriteFile;
-void writeSaveGameFile(void);
 
 #ifdef __cplusplus
 }
