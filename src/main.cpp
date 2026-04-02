@@ -97,11 +97,11 @@ void setup() {
     if (isLauncherLayout()) {
       // Ask to flash the launcher Game Station partition to unlock full size
       ConfirmationSelector confirm(display, input);
-      bool confirmed = confirm.select("ROM IS TOO HEAVY", "Change to 4.5MB layout?");
+      bool confirmed = confirm.select("ROM IS TOO HEAVY", "Change to 4MB layout?");
       
       if (confirmed) {
         display.topBar("FLASHING PARTITIONS", false, false);
-        display.subMessage("Allow up to 4.5MB roms", 3000);
+        display.subMessage("Allow up to 4MB roms", 3000);
         auto ok = flashGameStationPartition();
         if (ok) {
           display.subMessage("Success, rebooting...", 3000);
