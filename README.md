@@ -6,7 +6,9 @@
 ![NGP emulator screen captures on the M5Stack Cardputer](images/ngp_emulator_s.jpg)
 ![Megadrive emulator screen captures on the M5Stack Cardputer](images/megadrive_emulator_s.jpg)
 
-Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Snes9x](https://github.com/snes9xgit/snes9x), [Smsplus](https://github.com/ducalex/retro-go/tree/master/retro-core/components/smsplus), [Race](https://github.com/libretro/RACE), [Gwenesis](https://github.com/bzhxx/gwenesis), [Oswan](https://github.com/alekmaul/oswan), [GnuBoy](https://github.com/rofl0r/gnuboy), [Handy](https://github.com/libretro/libretro-handy), [PCE-GO](https://github.com/ducalex/retro-go/tree/master/retro-core/components/pce-go), [Stella](https://stella-emu.github.io/) and [Pro-System](https://github.com/libretro/prosystem-libretro). All cores were modified to run using **less than 256 KB of RAM**.
+Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Snes9x](https://github.com/snes9xgit/snes9x), [Smsplus](https://github.com/ducalex/retro-go/tree/master/retro-core/components/smsplus), [Race](https://github.com/libretro/RACE), [Gwenesis](https://github.com/bzhxx/gwenesis), [Oswan](https://github.com/alekmaul/oswan), [GnuBoy](https://github.com/rofl0r/gnuboy), [Handy](https://github.com/libretro/libretro-handy), [PCE-GO](https://github.com/ducalex/retro-go/tree/master/retro-core/components/pce-go), [Stella](https://stella-emu.github.io/) and [Pro-System](https://github.com/libretro/prosystem-libretro). 
+
+All cores were optimized to run within a memory footprint of **under 256 KB of RAM**, with particular emphasis on **minimizing both RAM and flash usage**. All 12 cores are packed **into just 2.5 MB of flash**, and no RAM is allocated for a core until it is actually launched.
 
  Console           | Sound | Video | Save | Speed | All Games  | Notes |
 |-------------------|--------|--------|---------------|-------------|-------------------|--------|
@@ -18,7 +20,7 @@ Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Sne
 | **Neo Geo Pocket**| ✅ | ✅ | ✅ | ✅ | ✅ | Mono/color support. Some slowdown in heavy titles |
 | **PC Engine**     | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible |
 | **Atari 2600**    | ✅ | ✅ | N/A | ✅ | ✅ | Few mappers not supported |
-| **Atari 7800**    | ✅ | ✅ | N/A | ⚠️ | ✅ | Not full speed in most games |
+| **Atari 7800**    | ✅ | ✅ | N/A | ⚠️ | ✅ | Not full speed in some games |
 | **Lynx**          | ✅ | ✅ | ⚠️ | ✅ | ✅ | Some slowdown in heavy titles, Sound issues in some games  |
 | **WonderSwan**    | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | Mono/color support, not fullspeed (75FPS) in most games  |
 | **Super NES**     | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
@@ -52,6 +54,7 @@ The built-in **Cardputer keyboard** is used for all controls:
 | 🔘 Quit Game | **G0 (hold 1 s)** | Go back to menu |
 
 The `j` key is also bound as Button A to allow an alternative layout for player preference.
+The `z` key is also bound as Arrow Down to allow the use of a D-PAD.
 
 ## M5Stack Joystick
 
@@ -69,19 +72,17 @@ You can alternatively use the M5Stack Joystick v1.1 (U024-C) or Joystick2 (U024-
 
 The Zoom Mode allows you to **dynamically adjust the display scale of games** on the Cardputer’s screen.
 
-By pressing `\` (above the `OK` key), you can toggle between **multiple zoom levels (100 to 150%), fullscreen or 4/3**. This flexibility ensures that each game looks its best on the Cardputer’s compact display.
+By pressing `\` (above the `OK` key), you can toggle between **multiple zoom levels (100 to 150%), fullscreen or 4/3**. This flexibility ensures that each game looks its best on the Cardputer’s compact display. 
+
+> In the SNES emulator, pressing `\` toggles between adaptive interlaced and lower-resolution modes for better performance.
+
+> in the GameBoy (not color) emulator, pressing `\` toggles between different color palettes.
 
 You can precisely adjust the display zoom level with `fn` + `arrows left/right`.
 
-✅ Why it matters:
-
-- Enhances readability and visual comfort.
-- Lets you adapt the screen to games.
-- Greatly improves gameplay experience.
-
 ## About Games
 
-You can place the **ROM uncompressed files** anywhere on your SD card and select them. The firmware allows running ROMs up to 6 MB.
+You can place the **ROM uncompressed files** anywhere on your SD card and select them. The firmware allows running ROMs up to 5.5 MB.
 
 > **⚠️ Avoid having more than 512 ROMs per folder** to prevent loading times.
 
@@ -105,7 +106,7 @@ For [Launcher](https://github.com/bmorcelli/Launcher)'s users, you can now use t
 
 The firmware can also automatically switch the device to the “Game Station” partition scheme in order to load ROMs larger than 1 MB.
 
-When you try to run a ROM that needs more space (up to 4.5 MB):
+When you try to run a ROM that needs more space (up to 4 MB):
 
 - The firmware checks that it is running under the Launcher.
 - If needed, it asks to flash the Game Station partition table.
