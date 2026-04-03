@@ -3,74 +3,21 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include "esp_heap_caps.h"
-#include <string.h>
 
 #include "snes9x/snes9x.h"
+#include "share/game_save.h"
 
-static constexpr int LCD_W = 240;
-static constexpr int LCD_H = 135;
-
-int snesZoomPercent = 100;
-
-// ================== TRANSFORM ==================
-
-static SnesDisplayTransform s_transform;
-
-static int s_lastZoomPercent = -1;
-static int s_lastSrcW = 0;
-static int s_lastSrcH = 0;
-
-static void snes_display_compute_transform(int srcW, int srcH)
-{
-    if (srcW <= 0 || srcH <= 0) {
-        return;
-    }
-
-    const int zoom = (snesZoomPercent > 0) ? snesZoomPercent : 100;
-
-    if (zoom == s_lastZoomPercent &&
-        srcW == s_lastSrcW &&
-        srcH == s_lastSrcH) {
-        return;
-    }
-
-    s_lastZoomPercent = zoom;
-    s_lastSrcW = srcW;
-    s_lastSrcH = srcH;
-
-    const float zoomFactor = (float)zoom / 100.0f;
-
-    // destination reste fixe
-    s_transform.srcW = srcW;
-    s_transform.srcH = srcH;
-    s_transform.dstW = LCD_W;
-    s_transform.dstH = LCD_H;
-    s_transform.xOffset = 0;
-    s_transform.yOffset = 0;
-
-    s_transform.invScaleX = ((float)srcW / (float)LCD_W) / zoomFactor;
-    s_transform.invScaleY = ((float)srcH / (float)LCD_H) / zoomFactor;
-}
-
-extern "C" void snes_display_update_transform(int srcW, int srcH)
-{
-    snes_display_compute_transform(srcW, srcH);
-}
-
-extern "C" void snes_display_get_transform(SnesDisplayTransform *out)
-{
-    if (!out) return;
-    *out = s_transform;
-}
+// Crop
+static constexpr int CROP_X = (SNES_WIDTH - LCD_W) / 2; // 8
+static constexpr int CROP_Y = (SNES_HEIGHT - LCD_H) / 2; // 44
+extern bool snes_interlace_lock_parity;
 
 #ifndef SNES_NO_THREADED_DISPLAY
 
+// ================== DOUBLE BUFFER LINES ==================
+
 typedef struct {
-    uint16_t y1;
-    uint16_t y2;
-    uint8_t has_second;
-    uint16_t dstW;
-    int16_t  xOffset;
+    uint16_t y;
     uint16_t pixels[LCD_W];
 } SnesLineBuf;
 
@@ -82,10 +29,13 @@ enum BufState : uint8_t {
 
 static TaskHandle_t  s_task    = nullptr;
 static volatile bool s_running = false;
+static volatile bool s_spi_released_for_save = false;
 
-static SnesLineBuf *s_buf = nullptr;
+// 2 buffers
+static SnesLineBuf *s_buf = nullptr;     // [2]
 static volatile BufState s_state[2] = { BUF_FREE, BUF_FREE };
 
+// Notify value bits
 static constexpr uint32_t NOTIF_BUF0 = (1u << 0);
 static constexpr uint32_t NOTIF_BUF1 = (1u << 1);
 
@@ -95,46 +45,124 @@ static void snes_display_task(void *arg)
 {
     (void)arg;
 
-    M5Cardputer.Display.startWrite();
+    bool spiStarted = false;
+
+    auto start_spi_if_needed = [&]() {
+        if (!spiStarted) {
+            M5Cardputer.Display.startWrite();
+            spiStarted = true;
+        }
+    };
+
+    auto stop_spi_if_needed = [&]() {
+        if (spiStarted) {
+            M5Cardputer.Display.endWrite();
+            spiStarted = false;
+        }
+    };
+
+    start_spi_if_needed();
 
     for (;;) {
         uint32_t notif = 0;
         xTaskNotifyWait(0, 0xFFFFFFFFu, &notif, portMAX_DELAY);
 
         if (!s_running) {
+            stop_spi_if_needed();
             continue;
         }
 
-        for (int i = 0; i < 2; ++i) {
-            const uint32_t bit = (i == 0) ? NOTIF_BUF0 : NOTIF_BUF1;
+        const bool saving = share::gameIsSaving();
 
-            if ((notif & bit) == 0) continue;
-            if (s_state[i] != BUF_READY) continue;
+        if (saving) {
+            s_spi_released_for_save = true;
+        } else {
+            s_spi_released_for_save = false;
+            start_spi_if_needed();
+        }
 
-            s_state[i] = BUF_DRAWING;
+        if (!snes_interlace_lock_parity) {
+            // ===== FAST PATH: INTERLACE =====
+            if (notif & NOTIF_BUF0) {
+                if (s_state[0] == BUF_READY) {
+                    s_state[0] = BUF_DRAWING;
 
-            const int drawX = s_buf[i].xOffset;
-            const int drawW = s_buf[i].dstW;
+                    uint16_t y = s_buf[0].y;
+                    if (y < LCD_H) {
+                        start_spi_if_needed();
+                        M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
+                        M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+                    }
 
-            const uint16_t y1 = s_buf[i].y1;
-            if (y1 < LCD_H && drawW > 0) {
-                M5Cardputer.Display.setAddrWindow(drawX, (int)y1, drawW, 1);
-                M5Cardputer.Display.pushPixels(s_buf[i].pixels, drawW);
-            }
-
-            if (s_buf[i].has_second) {
-                const uint16_t y2 = s_buf[i].y2;
-                if (y2 < LCD_H && drawW > 0) {
-                    M5Cardputer.Display.setAddrWindow(drawX, (int)y2, drawW, 1);
-                    M5Cardputer.Display.pushPixels(s_buf[i].pixels, drawW);
+                    s_state[0] = BUF_FREE;
                 }
             }
 
-            s_state[i] = BUF_FREE;
+            if (notif & NOTIF_BUF1) {
+                if (s_state[1] == BUF_READY) {
+                    s_state[1] = BUF_DRAWING;
+
+                    uint16_t y = s_buf[1].y;
+                    if (y < LCD_H) {
+                        start_spi_if_needed();
+                        M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
+                        M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+                    }
+
+                    s_state[1] = BUF_FREE;
+                }
+            }
+        } else {
+            // ===== FLINE DUP =====
+            if (notif & NOTIF_BUF0) {
+                if (s_state[0] == BUF_READY) {
+                    s_state[0] = BUF_DRAWING;
+
+                    uint16_t y = s_buf[0].y;
+                    if (y < LCD_H) {
+                        start_spi_if_needed();
+                        M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
+                        M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+
+                        uint16_t y2 = (y ^ 1u);
+                        if (y2 < LCD_H) {
+                            M5Cardputer.Display.setAddrWindow(0, (int)y2, LCD_W, 1);
+                            M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+                        }
+                    }
+
+                    s_state[0] = BUF_FREE;
+                }
+            }
+
+            if (notif & NOTIF_BUF1) {
+                if (s_state[1] == BUF_READY) {
+                    s_state[1] = BUF_DRAWING;
+
+                    uint16_t y = s_buf[1].y;
+                    if (y < LCD_H) {
+                        start_spi_if_needed();
+                        M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
+                        M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+
+                        uint16_t y2 = (y ^ 1u);
+                        if (y2 < LCD_H) {
+                            M5Cardputer.Display.setAddrWindow(0, (int)y2, LCD_W, 1);
+                            M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+                        }
+                    }
+
+                    s_state[1] = BUF_FREE;
+                }
+            }
+        }
+
+        if (saving) {
+            stop_spi_if_needed();
+            s_spi_released_for_save = true;
+            taskYIELD();
         }
     }
-
-    M5Cardputer.Display.endWrite();
 }
 
 // ================== PUBLIC API ==================
@@ -144,11 +172,12 @@ extern "C" void snes_display_init(void)
     M5Cardputer.Display.setSwapBytes(true);
     M5Cardputer.Display.fillScreen(TFT_BLACK);
 
-    if (s_buf) {
+   if (s_buf) {
         heap_caps_free(s_buf);
         s_buf = nullptr;
     }
 
+    // 2 lines buffer
     s_buf = (SnesLineBuf *)heap_caps_malloc(
         sizeof(SnesLineBuf) * 2,
         MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT
@@ -159,36 +188,30 @@ extern "C" void snes_display_init(void)
         return;
     }
 
+    // reset states
     s_state[0] = BUF_FREE;
     s_state[1] = BUF_FREE;
-
-    snes_display_compute_transform(SNES_WIDTH, SNES_HEIGHT);
 }
 
-extern "C" void snes_display_start(void)
+extern "C" void snes_display_start()
 {
     if (s_task) return;
-    if (!s_buf) return;
-
     s_running = true;
 
     BaseType_t ok = xTaskCreatePinnedToCore(
         snes_display_task,
         "SnesDisp",
-        1800,
+        1800, // stack
         nullptr,
-        6,
+        6, // prio
         &s_task,
-        0
+        0 // core 0
     );
 
     if (ok != pdPASS) {
-        if (s_task) {
-            vTaskDelete(s_task);
-        }
+        if (s_task) vTaskDelete(s_task);
         s_task = nullptr;
         s_running = false;
-        printf("[SNES-DISP] task create failed\n");
     }
 }
 
@@ -211,93 +234,61 @@ extern "C" void snes_display_stop(void)
     s_state[1] = BUF_FREE;
 }
 
-extern "C" void snes_display_wait_idle(void)
+// Called by the core for each line
+extern "C" void snes_display_submit_line(uint32_t y,
+                                        const uint16_t *pixels,
+                                        uint32_t width)
 {
-    if (!s_running || !s_task) return;
+    if (!pixels || !s_running || !s_task) return;
+    if (y >= LCD_H) return;
 
-    while (s_state[0] != BUF_FREE || s_state[1] != BUF_FREE) {
-        taskYIELD();
-    }
-}
+    if (width > SNES_WIDTH) width = SNES_WIDTH;
 
-extern "C" void snes_display_submit_line_ex(uint32_t y1,
-                                            uint32_t y2,
-                                            bool has_second,
-                                            const uint16_t *pixels,
-                                            uint32_t width)
-{
-    if (!pixels || !s_running || !s_task || !s_buf) return;
-
-    snes_display_compute_transform(SNES_WIDTH, SNES_HEIGHT);
-
-    const int dstW = s_transform.dstW;
-    const int xOffset = s_transform.xOffset;
-    const float invScaleX = s_transform.invScaleX;
-    const float srcCX = (float)width * 0.5f;
-    const float dstCX = (float)(dstW - 1) * 0.5f;
-
-    if (dstW <= 0 || dstW > LCD_W) return;
-    if (y1 >= LCD_H && (!has_second || y2 >= LCD_H)) return;
-
+    // Find a free buffer
     int idx = -1;
-
-    if (s_state[0] == BUF_FREE) {
-        idx = 0;
-    } else if (s_state[1] == BUF_FREE) {
-        idx = 1;
-    } else {
-        const uint32_t start = micros();
-        while ((micros() - start) < 200) {
-            if (s_state[0] == BUF_FREE) {
-                idx = 0;
-                break;
-            }
-            if (s_state[1] == BUF_FREE) {
-                idx = 1;
-                break;
-            }
-            taskYIELD();
-        }
-
-        if (idx < 0) {
-            return;
-        }
+    if (s_state[0] == BUF_FREE) idx = 0;
+    else if (s_state[1] == BUF_FREE) idx = 1;
+    else {
+        // the buffers are full, drop the line
+        return;
     }
 
+    // Mark DRAWING
     s_state[idx] = BUF_DRAWING;
 
-    s_buf[idx].y1 = (uint16_t)y1;
-    s_buf[idx].y2 = (uint16_t)y2;
-    s_buf[idx].has_second = has_second ? 1 : 0;
-    s_buf[idx].dstW = (uint16_t)dstW;
-    s_buf[idx].xOffset = (int16_t)xOffset;
+    // Crop/copy
+    s_buf[idx].y = (uint16_t)y;
 
-    for (int x = 0; x < dstW; ++x) {
-        float srcXf = srcCX + ((float)x - dstCX) * invScaleX;
-        int srcX = (int)srcXf;
-        if (srcX < 0) srcX = 0;
-        if (srcX >= (int)width) srcX = (int)width - 1;
-        s_buf[idx].pixels[x] = pixels[srcX];
+    int srcX0 = CROP_X;
+    int srcX1 = srcX0 + LCD_W;
+
+    if (srcX0 < 0) srcX0 = 0;
+    if ((uint32_t)srcX1 > width) srcX1 = (int)width;
+
+    int copyW = srcX1 - srcX0;
+    if (copyW <= 0) {
+        s_state[idx] = BUF_FREE;
+        return;
     }
+    if (copyW > LCD_W) copyW = LCD_W;
 
+    const uint16_t *src = pixels + srcX0;
+    for (int i = 0; i < copyW; ++i) s_buf[idx].pixels[i] = src[i];
+    for (int i = copyW; i < LCD_W; ++i) s_buf[idx].pixels[i] = 0x0000;
+
+    // Mark READY
     s_state[idx] = BUF_READY;
     xTaskNotify(s_task, (idx == 0) ? NOTIF_BUF0 : NOTIF_BUF1, eSetBits);
 }
 
-extern "C" void snes_display_submit_line(uint32_t y,
-                                         const uint16_t *pixels,
-                                         uint32_t width)
-{
-    snes_display_submit_line_ex(y, 0, false, pixels, width);
-}
-
 #else
+
+// ===================== NO TASK VERSION =====================
 
 extern "C" void snes_display_init(void)
 {
     M5Cardputer.Display.setSwapBytes(true);
     M5Cardputer.Display.fillScreen(TFT_BLACK);
-    snes_display_compute_transform(SNES_WIDTH, SNES_HEIGHT);
 }
 
 extern "C" void snes_display_start(void)
@@ -310,54 +301,51 @@ extern "C" void snes_display_stop(void)
     M5Cardputer.Display.endWrite();
 }
 
-extern "C" void snes_display_wait_idle(void)
-{
-}
-
-extern "C" void snes_display_submit_line_ex(uint32_t y1,
-                                            uint32_t y2,
-                                            bool has_second,
-                                            const uint16_t *pixels,
-                                            uint32_t width)
-{
-    if (!pixels) return;
-
-    snes_display_compute_transform(SNES_WIDTH, SNES_HEIGHT);
-
-    const int dstW = s_transform.dstW;
-    const int xOffset = s_transform.xOffset;
-    const float invScaleX = s_transform.invScaleX;
-    const float srcCX = (float)width * 0.5f;
-    const float dstCX = (float)(dstW - 1) * 0.5f;
-
-    if (dstW <= 0 || dstW > LCD_W) return;
-
-    static uint16_t lineBuf[LCD_W];
-
-    for (int x = 0; x < dstW; ++x) {
-        float srcXf = srcCX + ((float)x - dstCX) * invScaleX;
-        int srcX = (int)srcXf;
-        if (srcX < 0) srcX = 0;
-        if (srcX >= (int)width) srcX = (int)width - 1;
-        lineBuf[x] = pixels[srcX];
-    }
-
-    if (y1 < LCD_H) {
-        M5Cardputer.Display.setAddrWindow(xOffset, (int)y1, dstW, 1);
-        M5Cardputer.Display.pushPixels(lineBuf, dstW);
-    }
-
-    if (has_second && y2 < LCD_H) {
-        M5Cardputer.Display.setAddrWindow(xOffset, (int)y2, dstW, 1);
-        M5Cardputer.Display.pushPixels(lineBuf, dstW);
-    }
-}
-
 extern "C" void snes_display_submit_line(uint32_t y,
                                          const uint16_t *pixels,
                                          uint32_t width)
 {
-    snes_display_submit_line_ex(y, 0, false, pixels, width);
+    if (!pixels) return;
+    if (y >= LCD_H) return; 
+
+    if (width > SNES_WIDTH) width = SNES_WIDTH;
+
+    static uint16_t lineBuf[LCD_W];
+
+    int srcX0 = CROP_X;          // 8
+    int srcX1 = srcX0 + LCD_W;   // 8 + 240 = 248
+
+    if (srcX0 < 0)              srcX0 = 0;
+    if ((uint32_t)srcX1 > width) srcX1 = width;
+
+    int copyW = srcX1 - srcX0;
+    if (copyW <= 0) {
+        return;
+    }
+    if (copyW > LCD_W) copyW = LCD_W;
+
+    const uint16_t *src = pixels + srcX0;
+    for (int i = 0; i < copyW; ++i) {
+        lineBuf[i] = src[i];
+    }
+    for (int i = copyW; i < LCD_W; ++i) {
+        lineBuf[i] = 0x0000;
+    }
+
+    M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
+    M5Cardputer.Display.pushPixels(lineBuf, LCD_W);
 }
 
 #endif
+
+extern "C" void snes_display_wake(void)
+{
+    if (s_task) {
+        xTaskNotify(s_task, 0, eNoAction);
+    }
+}
+
+extern "C" bool snes_display_is_spi_released(void)
+{
+    return s_spi_released_for_save;
+}
