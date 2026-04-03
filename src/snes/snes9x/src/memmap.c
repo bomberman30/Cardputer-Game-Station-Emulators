@@ -29,7 +29,11 @@
 #define MAP_LOROM_SRAM_OR_NONE (Memory.SRAMSize == 0 ? (uint8_t*) MAP_NONE : (uint8_t*) MAP_LOROM_SRAM)
 #define MAP_RONLY_SRAM_OR_NONE (Memory.SRAMSize == 0 ? (uint8_t*) MAP_NONE : (uint8_t*) MAP_RONLY_SRAM)
 
-static uint8_t *bytes0x2000; //  [0x2000];
+#ifndef SNES_NO_BYTE2000
+static uint8_t *bytes0x2000;
+#else
+static uint8_t openbus_fallback[2];
+#endif
 
 static bool AllASCII(const uint8_t* b, int32_t size)
 {
@@ -132,25 +136,23 @@ static void Sanitize(char* str, size_t bufsize)
 }
 
 /**********************************************************************************************/
-/* S9xInitMemory()                                                                                     */
+/* S9xInitMemory()                                                                            */
 /* This function allocates and zeroes all the memory needed by the emulator                   */
 /**********************************************************************************************/
 bool S9xInitMemory(void)
 {
-   // WRAM
-   Memory.RAM = (uint8_t*)malloc(RAM_SIZE); // 128 KB
+   // WRAM (128 KB)
+   Memory.RAM = (uint8_t*)calloc(RAM_SIZE, 1);
 
-   // We can't allocate sram, not enough RAM
-   Memory.SRAM     = NULL;
-   Memory.SRAMSize = 0;
+   // VRAM (64 KB)
+   Memory.VRAM = (uint8_t*)calloc(VRAM_SIZE, 1);
 
-   // VRAM + FillRAM
-   Memory.VRAM    = (uint8_t*)malloc(VRAM_SIZE); // 64 KB
-   Memory.FillRAM = (uint8_t*)malloc(FILLRAM_SIZE); // 18 KB
-   
+   // FillRAM (18 KB)
+   Memory.FillRAM = (uint8_t*)calloc(FILLRAM_SIZE, 1);
+
 #ifndef SNES_NO_BYTE2000 
-  // Extra 8 KB for $2000-$3FFF mirror, disabled for low RAM usage
-   bytes0x2000 = (uint8_t *)calloc(0x2000, 1); // 8 KB
+   // Extra 8 KB for $2000-$3FFF mirror
+   bytes0x2000 = (uint8_t *)calloc(0x2000, 1);
 #endif
 
    // Test allocations
@@ -161,7 +163,6 @@ bool S9xInitMemory(void)
 
    return true;
 }
-
 bool S9xInitMap(void)
 {
    // Map / MapInfo
@@ -180,20 +181,22 @@ bool S9xInitMap(void)
 bool S9xInitPpu(void)
 {
    IPPU.ScreenColors = (uint16_t *)calloc(256 * 9, sizeof(uint16_t)); // 4 KB
-   IPPU.DirectColors = IPPU.ScreenColors + 256; // 4 KB
-   IPPU.TileCache = NULL; // not enough RAM, no caching
-   IPPU.TileCached = (uint8_t*) calloc(MAX_2BIT_TILES, 1);
-   IPPU.Red = (uint8_t*) malloc(256); // 256 B
-   IPPU.Green = (uint8_t*) malloc(256); // 256 B
-   IPPU.Blue = (uint8_t*) malloc(256); // 256 B
+   IPPU.DirectColors = IPPU.ScreenColors + 256;
 
-   PPU.CGDATA = (uint16_t *)calloc(256, sizeof(uint16_t)); // 512 B
-   PPU.OBJ = (SOBJ *)calloc(128, sizeof(SOBJ)); // 2 KB
-   PPU.OAMData = (uint8_t *)calloc(512 + 32, sizeof(uint8_t)); // 544 B
+   IPPU.TileCache  = NULL; // no cache
+   IPPU.TileCached = (uint8_t*)calloc(MAX_2BIT_TILES, 1);
 
-   // Test allocations
-   if (!IPPU.ScreenColors || !IPPU.TileCached || !IPPU.Red || 
-       !IPPU.Green || !IPPU.Blue || !PPU.CGDATA || !PPU.OBJ || !PPU.OAMData)
+   IPPU.Red   = (uint8_t*)calloc(256, 1);
+   IPPU.Green = (uint8_t*)calloc(256, 1);
+   IPPU.Blue  = (uint8_t*)calloc(256, 1);
+
+   PPU.CGDATA  = (uint16_t *)calloc(256, sizeof(uint16_t)); // 512 B
+   PPU.OBJ     = (SOBJ *)calloc(128, sizeof(SOBJ));         // 2 KB
+   PPU.OAMData = (uint8_t *)calloc(512 + 32, 1);            // 544 B
+
+   if (!IPPU.ScreenColors || !IPPU.TileCached ||
+       !IPPU.Red || !IPPU.Green || !IPPU.Blue ||
+       !PPU.CGDATA || !PPU.OBJ || !PPU.OAMData)
    {
       return false;
    }
@@ -812,8 +815,13 @@ void LoROMMap(void)
       }
       else
       {
-         Memory.Map [c + 6] = Memory.Map [c + 0x806] = (uint8_t*) bytes0x2000 - 0x6000;
-         Memory.Map [c + 7] = Memory.Map [c + 0x807] = (uint8_t*) bytes0x2000 - 0x6000;
+        #ifndef SNES_NO_BYTE2000
+         Memory.Map[c + 6] = Memory.Map[c + 0x806] = (uint8_t*)bytes0x2000 - 0x6000;
+         Memory.Map[c + 7] = Memory.Map[c + 0x807] = (uint8_t*)bytes0x2000 - 0x6000;
+      #else
+         Memory.Map[c + 6] = Memory.Map[c + 0x806] = (uint8_t*)openbus_fallback - 0x6000;
+         Memory.Map[c + 7] = Memory.Map[c + 0x807] = (uint8_t*)openbus_fallback - 0x6000;
+      #endif
       }
 
       for (i = c + 8; i < c + 16; i++)
@@ -1050,7 +1058,7 @@ void AlphaROMMap(void)
       for (i = c + 8; i < c + 16; i++)
       {
          Memory.Map [i] = Memory.Map [i + 0x800] = &Memory.ROM [(c << 11) % Memory.CalculatedSize] - 0x8000;
-         Memory.MapInfo[i].Type = MAP_TYPE_ROM;
+         Memory.MapInfo[i].Type = Memory.MapInfo[i + 0x800].Type = MAP_TYPE_ROM;
       }
    }
 
@@ -1277,8 +1285,13 @@ void JumboLoROMMap(bool Interleaved)
       }
       else
       {
-         Memory.Map [c + 6] = Memory.Map [c + 0x806] = (uint8_t*) bytes0x2000 - 0x6000;
-         Memory.Map [c + 7] = Memory.Map [c + 0x807] = (uint8_t*) bytes0x2000 - 0x6000;
+   #ifndef SNES_NO_BYTE2000
+      Memory.Map[c + 6] = Memory.Map[c + 0x806] = (uint8_t*)bytes0x2000 - 0x6000;
+      Memory.Map[c + 7] = Memory.Map[c + 0x807] = (uint8_t*)bytes0x2000 - 0x6000;
+   #else
+      Memory.Map[c + 6] = Memory.Map[c + 0x806] = (uint8_t*)openbus_fallback - 0x6000;
+      Memory.Map[c + 7] = Memory.Map[c + 0x807] = (uint8_t*)openbus_fallback - 0x6000;
+   #endif
       }
 
       for (i = c + 8; i < c + 16; i++)
@@ -1585,10 +1598,13 @@ void ApplyROMFixes(void)
 
    /* Additional game fixes by sanmaiwashi ... */
    /* Gundam Knight Story */
-   if (match_na("SFX \xC5\xB2\xC4\xB6\xDE\xDD\xC0\xDE\xD1\xD3\xC9\xB6\xDE\xC0\xD8 1"))
-   {
-      bytes0x2000 [0xb18] = 0x4c;
-      bytes0x2000 [0xb19] = 0x4b;
-      bytes0x2000 [0xb1a] = 0xea;
-   }
+   #ifndef SNES_NO_BYTE2000
+      /* Gundam Knight Story */
+      if (match_na("SFX \xC5\xB2\xC4\xB6\xDE\xDD\xC0\xDE\xD1\xD3\xC9\xB6\xDE\xC0\xD8 1"))
+      {
+         bytes0x2000[0xb18] = 0x4c;
+         bytes0x2000[0xb19] = 0x4b;
+         bytes0x2000[0xb1a] = 0xea;
+      }
+   #endif
 }
