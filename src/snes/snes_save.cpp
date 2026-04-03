@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <stdlib.h>
-
+#include "snes_display.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "share/game_save.h"
@@ -20,7 +20,7 @@ extern "C" {
 #define SNES_SAVE_DIR "/sd/snes_saves"
 #define SAVE_CHECK_MS 2000
 #define SAVE_GAP_MS   15000
-#define SNES_SRAM_MAX_BYTES 2048
+#define SNES_SRAM_MAX_BYTES 8192
 
 /* ============================= Etat ============================= */
 
@@ -29,6 +29,8 @@ static TickType_t g_next_check  = 0;
 static TickType_t g_next_allow  = 0;
 static TickType_t g_first_dirty = 0;
 static TickType_t g_last_save   = 0;
+static uint32_t   g_last_hash   = 0;
+static bool       g_hash_valid  = false;
 
 #ifndef SNES_NO_THREADED_SAVE
 static TaskHandle_t   g_task        = nullptr;
@@ -70,7 +72,44 @@ static size_t get_sram_size(void) {
   return size;
 }
 
+static uint32_t hash_sram(const uint8_t* data, size_t size) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < size; ++i) {
+    hash ^= data[i];
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
 /* ======================= SRAM setup ===================== */
+
+extern "C" bool snes_save_alloc_sram(void) {
+  if (Memory.SRAM != NULL) {
+    printf("[SNES][SRAM] already allocated (%u bytes max)\n",
+           (unsigned)SNES_SRAM_MAX_BYTES);
+    return true;
+  }
+
+  Memory.SRAM = (uint8_t*)calloc(1, SNES_SRAM_MAX_BYTES);
+  if (Memory.SRAM == NULL) {
+    printf("[SNES][SRAM] Alloc failed for %u bytes\n",
+           (unsigned)SNES_SRAM_MAX_BYTES);
+    Memory.SRAMSize = 0;
+    Memory.SRAMMask = 0;
+    g_last_hash = 0;
+    g_hash_valid = false;
+    return false;
+  }
+
+  Memory.SRAMSize = 0;
+  Memory.SRAMMask = 0;
+  g_last_hash = 0;
+  g_hash_valid = false;
+
+  printf("[SNES][SRAM] Allocated max buffer: %u bytes\n",
+         (unsigned)SNES_SRAM_MAX_BYTES);
+  return true;
+}
 
 extern "C" void snes_save_prepare_sram(void) {
   uint32_t sram_bytes = 0;
@@ -79,30 +118,31 @@ extern "C" void snes_save_prepare_sram(void) {
     sram_bytes = ((uint32_t)1 << (Memory.SRAMSize + 3)) * 128;
   }
 
-  if (Memory.SRAM != NULL) {
-    free(Memory.SRAM);
-    Memory.SRAM = NULL;
+  if (Memory.SRAM == NULL) {
+    printf("[SNES][SRAM] prepare failed: buffer not allocated\n");
+    Memory.SRAMSize = 0;
+    Memory.SRAMMask = 0;
+    g_last_hash = 0;
+    g_hash_valid = false;
+    return;
   }
 
   if (sram_bytes == 0 || sram_bytes > SNES_SRAM_MAX_BYTES) {
     printf("[SNES][SRAM] disabled: requested %u bytes\n", (unsigned)sram_bytes);
     Memory.SRAMSize = 0;
     Memory.SRAMMask = 0;
+    g_last_hash = 0;
+    g_hash_valid = false;
     return;
   }
 
-  Memory.SRAM = (uint8_t*)calloc(1, sram_bytes);
-  if (Memory.SRAM == NULL) {
-    printf("[SNES][SRAM] alloc failed for %u bytes\n", (unsigned)sram_bytes);
-    Memory.SRAMSize = 0;
-    Memory.SRAMMask = 0;
-    return;
-  }
+  memset(Memory.SRAM, 0, sram_bytes);
 
   Memory.SRAMMask = sram_bytes - 1;
-  CPU.SRAMModified = false;
+  g_last_hash = hash_sram(Memory.SRAM, sram_bytes);
+  g_hash_valid = true;
 
-  printf("[SNES][SRAM] allocated: %u bytes, mask=0x%X\n",
+  printf("[SNES][SRAM] prepared: %u bytes, mask=0x%X\n",
          (unsigned)sram_bytes,
          (unsigned)Memory.SRAMMask);
 }
@@ -119,12 +159,17 @@ static bool save_now(void) {
     return false;
   }
 
-  if (!share::gameSaveEnsureParentReady(SNES_SAVE_DIR)) {
-    printf("[SNES][SAVE] storage path not ready, skip save\n");
-    return false;
+  share::setGameIsSaving(true);
+  snes_display_wake();
+  while (!snes_display_is_spi_released()) {
+      vTaskDelay(1);
   }
 
-  share::setGameIsSaving(true);
+  if (!share::gameSaveEnsureParentReady(SNES_SAVE_DIR)) {
+    printf("[SNES][SAVE] storage path not ready, skip save\n");
+    share::setGameIsSaving(false);
+    return false;
+  }
 
   FILE* f = fopen(g_save_path, "wb");
   if (!f) {
@@ -137,7 +182,7 @@ static bool save_now(void) {
   fclose(f);
 
   share::setGameIsSaving(false);
-
+  
   if (n != sram_size) {
     printf("[SNES][SAVE] fwrite failed: wrote %u / %u bytes\n",
            (unsigned)n, (unsigned)sram_size);
@@ -146,7 +191,8 @@ static bool save_now(void) {
 
   g_last_save   = xTaskGetTickCount();
   g_first_dirty = 0;
-  CPU.SRAMModified = false;
+  g_last_hash   = hash_sram(Memory.SRAM, sram_size);
+  g_hash_valid  = true;
 
   printf("[SNES][SAVE] SRAM saved to %s (%u bytes)\n",
          g_save_path, (unsigned)sram_size);
@@ -160,6 +206,8 @@ static void process_save_logic(bool force_flush) {
   if (!Memory.SRAM) return;
 
   TickType_t now = xTaskGetTickCount();
+  size_t sram_size = get_sram_size();
+  if (sram_size == 0) return;
 
   if (force_flush) {
     if (now >= g_next_allow) {
@@ -176,7 +224,10 @@ static void process_save_logic(bool force_flush) {
   if (now < g_next_check) return;
   g_next_check = now + pdMS_TO_TICKS(SAVE_CHECK_MS);
 
-  if (CPU.SRAMModified) {
+  uint32_t current_hash = hash_sram(Memory.SRAM, sram_size);
+  bool changed = (!g_hash_valid || current_hash != g_last_hash);
+
+  if (changed) {
     if (g_first_dirty == 0) g_first_dirty = now;
 
     if (now >= g_next_allow) {
@@ -203,10 +254,16 @@ static void SaveTask(void* /*arg*/) {
     TickType_t now = xTaskGetTickCount();
 
     if (do_check) {
-      if (CPU.SRAMModified) {
-        if (g_first_dirty == 0) g_first_dirty = now;
-        if (now >= g_next_allow) {
-          do_flush = true;
+      size_t sram_size = get_sram_size();
+      if (sram_size > 0) {
+        uint32_t current_hash = hash_sram(Memory.SRAM, sram_size);
+        bool changed = (!g_hash_valid || current_hash != g_last_hash);
+
+        if (changed) {
+          if (g_first_dirty == 0) g_first_dirty = now;
+          if (now >= g_next_allow) {
+            do_flush = true;
+          }
         }
       }
     }
@@ -248,6 +305,15 @@ extern "C" void snes_save_init(const char* romPathOrName) {
   g_first_dirty = 0;
   g_last_save   = 0;
 
+  size_t sram_size = get_sram_size();
+  if (sram_size > 0) {
+    g_last_hash  = hash_sram(Memory.SRAM, sram_size);
+    g_hash_valid = true;
+  } else {
+    g_last_hash  = 0;
+    g_hash_valid = false;
+  }
+
 #ifndef SNES_NO_THREADED_SAVE
   g_flag_check  = false;
   g_flag_flush  = false;
@@ -287,6 +353,15 @@ extern "C" void snes_save_load(void) {
   struct stat st;
   if (stat(g_save_path, &st) != 0) {
     printf("[SNES][SAVE] no existing save file for %s\n", g_save_path);
+
+    size_t sram_size = get_sram_size();
+    if (sram_size > 0) {
+      g_last_hash  = hash_sram(Memory.SRAM, sram_size);
+      g_hash_valid = true;
+    } else {
+      g_last_hash  = 0;
+      g_hash_valid = false;
+    }
     return;
   }
 
@@ -309,7 +384,8 @@ extern "C" void snes_save_load(void) {
   printf("[SNES][SAVE] SRAM loaded from %s (%u bytes)\n",
          g_save_path, (unsigned)n);
 
-  CPU.SRAMModified = false;
+  g_last_hash  = hash_sram(Memory.SRAM, sram_size);
+  g_hash_valid = true;
 
   FILE* dbg = fopen(g_save_path, "rb");
   if (dbg) {
@@ -349,4 +425,8 @@ extern "C" void snes_save_request_flush(void) {
 
 extern "C" void snes_save_force_flush(void) {
   save_now();
+}
+
+extern "C" bool snes_save_has_sram() {
+  return (Memory.SRAM != NULL) && (Memory.SRAMMask != 0);
 }

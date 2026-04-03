@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include "share/input.h"
 #include "esp_heap_caps.h"
-#include "snes_video_mode.h"
 
 extern "C" {
     #include "snes9x/snes9x.h"
@@ -13,32 +12,8 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-extern int snesZoomPercent;
-
+extern bool snes_interlace_lock_parity;
 static volatile uint32_t s_lastInputMask = 0;
-
-static inline void snes_toggle_screen_mode()
-{
-    if (g_snesScreenMode == SNES_SCREEN_INTERLACE) {
-        g_snesScreenMode = SNES_SCREEN_LINE_DUPLICATE;
-    } else {
-        g_snesScreenMode = SNES_SCREEN_INTERLACE;
-    }
-}
-
-static inline void snes_zoom_in()
-{
-    if (snesZoomPercent < 150) {
-        snesZoomPercent++;
-    }
-}
-
-static inline void snes_zoom_out()
-{
-    if (snesZoomPercent > 100) {
-        snesZoomPercent--;
-    }
-}
 
 #ifndef SNES_NO_THREADED_INPUT
 
@@ -62,7 +37,7 @@ uint32_t snes_input_compute_mask()
     // ================== SCREEN MODE ==================
     if (M5Cardputer.Keyboard.isChange() &&
         M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_SCREEN_TOGGLE)) {
-        snes_toggle_screen_mode();
+        snes_interlace_lock_parity = !snes_interlace_lock_parity;
         return s_lastInputMask;
     }
 
@@ -220,21 +195,7 @@ uint32_t snes_input_poll()
 
     if (M5Cardputer.Keyboard.isChange() &&
         M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_SCREEN_TOGGLE)) {
-        snes_toggle_screen_mode();
-        return s_lastInputMask;
-    }
-
-    if (ks.fn &&
-        (M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_RIGHT_1) ||
-         M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_RIGHT_2))) {
-        snes_zoom_in();
-        return s_lastInputMask;
-    }
-
-    if (ks.fn &&
-        (M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_LEFT_1) ||
-         M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_LEFT_2))) {
-        snes_zoom_out();
+        snes_interlace_lock_parity = !snes_interlace_lock_parity;
         return s_lastInputMask;
     }
 
