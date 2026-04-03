@@ -312,6 +312,7 @@ static void a2600_draw_line_16bit(const uint8_t* srcLine,
 static void a2600_display_task(void* arg)
 {
     (void)arg;
+    M5Cardputer.Display.startWrite();
 
     for (;;) {
         int slotIndex = -1;
@@ -356,7 +357,6 @@ static void a2600_display_task(void* arg)
             a2600_clear_target();
         }
 
-        M5Cardputer.Display.startWrite();
         M5Cardputer.Display.setAddrWindow(plan.xOff, plan.yOff, plan.dstW, plan.dstH);
 
         for (int y = 0; y < plan.dstH; ++y) {
@@ -364,7 +364,6 @@ static void a2600_display_task(void* arg)
             a2600_draw_line_16bit(srcLine, slot.palette565, plan.dstW);
         }
 
-        M5Cardputer.Display.endWrite();
 
         portENTER_CRITICAL(&s_slotMux);
         s_slotState[slotIndex] = A2600_SLOT_FREE;
@@ -372,6 +371,8 @@ static void a2600_display_task(void* arg)
 
         vTaskDelay(0);
     }
+    
+    M5Cardputer.Display.endWrite();
 }
 
 // ================== PUBLIC API ==================

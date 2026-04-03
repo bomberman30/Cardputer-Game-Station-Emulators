@@ -214,6 +214,7 @@ static bool a7800_prepare_luts(const A7800RenderPlan& plan)
 static void a7800_display_task(void* arg)
 {
     (void)arg;
+    M5Cardputer.Display.startWrite();
 
     for (;;) {
         A7800FrameMsg msg = {};
@@ -243,7 +244,6 @@ static void a7800_display_task(void* arg)
             a7800_clear_target();
         }
 
-        M5Cardputer.Display.startWrite();
         M5Cardputer.Display.setAddrWindow(plan.xOff, plan.yOff, plan.dstW, plan.dstH);
 
         for (int y = 0; y < plan.dstH; y += kVideoBatchLines) {
@@ -269,16 +269,14 @@ static void a7800_display_task(void* arg)
                 }
             }
 
-            M5Cardputer.Display.pushPixels(s_lineBuf, plan.dstW * batch);
+            M5Cardputer.Display.writePixels(s_lineBuf, plan.dstW * batch);
         }
-
-        M5Cardputer.Display.endWrite();
 
         s_videoTotalUs += (esp_timer_get_time() - tVideoStart);
         s_videoCount++;
-
-        vTaskDelay(0);
     }
+
+    M5Cardputer.Display.endWrite();
 }
 
 void a7800_video_init(double fps, unsigned baseWidth, unsigned baseHeight, float aspectRatio)
