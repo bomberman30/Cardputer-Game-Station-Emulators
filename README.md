@@ -23,7 +23,7 @@ All cores were optimized to run within a memory footprint of **under 256 KB of R
 | **Atari 7800**    | ✅ | ✅ | N/A | ⚠️ | ✅ | Not full speed in some games |
 | **Lynx**          | ✅ | ✅ | ⚠️ | ✅ | ✅ | Some slowdown in heavy titles, Sound issues in some games  |
 | **WonderSwan**    | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | Mono/color support, not fullspeed (75FPS) in most games  |
-| **Super NES**     | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
+| **Super NES**     | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
 
 
 It runs **`.nes` `.gb` `.gbc` `.sms` `.gg` `.lnx` `.a26` `.a78` `.pce` `.md` `.ngc` `.ngp` `.ws` `.wsc` `.sfc`ROM files from the SD**.
