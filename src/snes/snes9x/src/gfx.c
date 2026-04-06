@@ -237,18 +237,18 @@ bool S9xInitGFX(void)
 bool S9xInitLineBuffers(void)
 {
    // buffer lines
-   s_line.main  = malloc(sizeof(uint16_t) * SNES_WIDTH);
-   s_line.sub   = malloc(sizeof(uint16_t) * SNES_WIDTH);
-   s_line.z     = malloc(sizeof(uint8_t)  * SNES_WIDTH);
-   s_line.subz  = malloc(sizeof(uint8_t)  * SNES_WIDTH);
+   s_line.main  = malloc(sizeof(uint16_t) * SNES_WIDTH * 2); // hi-res
+   s_line.sub   = malloc(sizeof(uint16_t) * SNES_WIDTH * 2);
+   s_line.z     = malloc(sizeof(uint8_t)  * SNES_WIDTH * 2);
+   s_line.subz  = malloc(sizeof(uint8_t)  * SNES_WIDTH * 2);
 
    if (!s_line.main || !s_line.sub || !s_line.z || !s_line.subz)
       return false;
 
-   memset(s_line.main, 0, sizeof(uint16_t) * SNES_WIDTH);
-   memset(s_line.sub,  0, sizeof(uint16_t) * SNES_WIDTH);
-   memset(s_line.z,    0, sizeof(uint8_t)  * SNES_WIDTH);
-   memset(s_line.subz, 0, sizeof(uint8_t)  * SNES_WIDTH);
+   memset(s_line.main, 0, sizeof(uint16_t) * SNES_WIDTH * 2);
+   memset(s_line.sub,  0, sizeof(uint16_t) * SNES_WIDTH * 2);
+   memset(s_line.z,    0, sizeof(uint8_t)  * SNES_WIDTH * 2);
+   memset(s_line.subz, 0, sizeof(uint8_t)  * SNES_WIDTH * 2);
    return true;
 }
 
