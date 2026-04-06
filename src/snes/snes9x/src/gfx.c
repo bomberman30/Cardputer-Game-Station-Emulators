@@ -3220,7 +3220,7 @@ void S9xRenderLine_NoFramebuffer(uint32_t line, S9xLineCallback cb)
     S9xUpdateScreen_Core();
 
     /* Push line to the screen */
-    cb(line, s_line.main, SNES_WIDTH);
+    cb(line, s_line.main, IPPU.RenderedScreenWidth);
 
     /* Restore state */
     GFX.LineRenderMode   = oldLineMode;

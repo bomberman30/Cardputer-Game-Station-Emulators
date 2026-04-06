@@ -236,13 +236,11 @@ extern "C" void snes_display_stop(void)
 
 // Called by the core for each line
 extern "C" void snes_display_submit_line(uint32_t y,
-                                        const uint16_t *pixels,
-                                        uint32_t width)
+                                         const uint16_t *pixels,
+                                         uint32_t width)
 {
     if (!pixels || !s_running || !s_task) return;
     if (y >= LCD_H) return;
-
-    if (width > SNES_WIDTH) width = SNES_WIDTH;
 
     // Find a free buffer
     int idx = -1;
@@ -255,26 +253,36 @@ extern "C" void snes_display_submit_line(uint32_t y,
 
     // Mark DRAWING
     s_state[idx] = BUF_DRAWING;
-
-    // Crop/copy
     s_buf[idx].y = (uint16_t)y;
 
-    int srcX0 = CROP_X;
-    int srcX1 = srcX0 + LCD_W;
-
-    if (srcX0 < 0) srcX0 = 0;
-    if ((uint32_t)srcX1 > width) srcX1 = (int)width;
-
-    int copyW = srcX1 - srcX0;
-    if (copyW <= 0) {
-        s_state[idx] = BUF_FREE;
-        return;
+    if (width >= 512)
+    {
+        const uint16_t *src = pixels + (CROP_X * 2);
+        for (int i = 0; i < LCD_W; ++i)
+            s_buf[idx].pixels[i] = src[i * 2];
     }
-    if (copyW > LCD_W) copyW = LCD_W;
+    else
+    {
+        // Normal path
+        if (width > SNES_WIDTH) width = SNES_WIDTH;
 
-    const uint16_t *src = pixels + srcX0;
-    for (int i = 0; i < copyW; ++i) s_buf[idx].pixels[i] = src[i];
-    for (int i = copyW; i < LCD_W; ++i) s_buf[idx].pixels[i] = 0x0000;
+        int srcX0 = CROP_X;
+        int srcX1 = srcX0 + LCD_W;
+
+        if (srcX0 < 0) srcX0 = 0;
+        if ((uint32_t)srcX1 > width) srcX1 = (int)width;
+
+        int copyW = srcX1 - srcX0;
+        if (copyW <= 0) {
+            s_state[idx] = BUF_FREE;
+            return;
+        }
+        if (copyW > LCD_W) copyW = LCD_W;
+
+        const uint16_t *src = pixels + srcX0;
+        for (int i = 0; i < copyW; ++i) s_buf[idx].pixels[i] = src[i];
+        for (int i = copyW; i < LCD_W; ++i) s_buf[idx].pixels[i] = 0x0000;
+    }
 
     // Mark READY
     s_state[idx] = BUF_READY;
