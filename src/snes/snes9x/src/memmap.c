@@ -163,6 +163,7 @@ bool S9xInitMemory(void)
 
    return true;
 }
+
 bool S9xInitMap(void)
 {
    // Map / MapInfo
