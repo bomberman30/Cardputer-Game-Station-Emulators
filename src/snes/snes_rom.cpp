@@ -67,6 +67,15 @@ static const char* const kAltGameTitles[] =
     "POCKY ROCKY",
     "ARDY LIGHTFOOT",
     "DARK WATER",
+    "DRAGON BRUCE LEE",
+    "CHUCK ROCK",
+    "INDIANA JONES GREAT",
+    "JUSTICE LEAGUE",
+    "INDY CAR CHALLENGE",
+    "ROAD RIOT 4WD",
+    "RR DEATH VALLEY RALLY",
+    "Speed Racer",
+    "SHAQ FU"
 };
 
 static bool streq_nocase(const char* a, const char* b)
