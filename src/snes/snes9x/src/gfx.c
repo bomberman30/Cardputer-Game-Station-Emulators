@@ -8,6 +8,9 @@
 #include "display.h"
 #include "gfx.h"
 #include "apu.h"
+#include "esp_attr.h"
+
+extern bool S9xIsSourceLineNeeded(uint32_t srcY);
 
 typedef struct
 {
@@ -16,6 +19,29 @@ typedef struct
     uint8_t  *z;
     uint8_t  *subz;
 } LineBuffers;
+
+static S9xLineCallback s_liveLineCallback = NULL;
+static bool     s_liveSpanOpen  = false;
+static uint32_t s_liveSpanStart = 0;
+static uint32_t s_liveSpanEnd   = 0;
+
+static void S9xFlushLiveSpanRange(uint32_t start, uint32_t end);
+
+static inline void S9xCommitLiveSpan(void)
+{
+   if (!s_liveSpanOpen)
+      return;
+
+   S9xFlushLiveSpanRange(s_liveSpanStart, s_liveSpanEnd);
+   s_liveSpanOpen  = false;
+   s_liveSpanStart = 0;
+   s_liveSpanEnd   = 0;
+}
+
+void S9xSetLineCallback(S9xLineCallback cb)
+{
+   s_liveLineCallback = cb;
+}
 
 static const uint8_t BitShifts[8][4] =
 {
@@ -320,82 +346,6 @@ void S9xStartScreenRefresh(void)
 
    if (++IPPU.FrameCount == (uint32_t)Memory.ROMFramesPerSecond)
       IPPU.FrameCount = 0;
-}
-
-void RenderLine(uint8_t C)
-{
-   if (IPPU.RenderThisFrame)
-   {
-      LineData[C].BG[0].VOffset = PPU.BG[0].VOffset + 1;
-      LineData[C].BG[0].HOffset = PPU.BG[0].HOffset;
-      LineData[C].BG[1].VOffset = PPU.BG[1].VOffset + 1;
-      LineData[C].BG[1].HOffset = PPU.BG[1].HOffset;
-
-      if (PPU.BGMode == 7)
-      {
-         SLineMatrixData* p = &LineMatrixData [C];
-         p->MatrixA = PPU.MatrixA;
-         p->MatrixB = PPU.MatrixB;
-         p->MatrixC = PPU.MatrixC;
-         p->MatrixD = PPU.MatrixD;
-         p->CentreX = PPU.CentreX;
-         p->CentreY = PPU.CentreY;
-      }
-      else
-      {
-         if (Settings.StarfoxHack && PPU.BG[2].VOffset == 0 && PPU.BG[2].HOffset == 0xe000)
-         {
-            LineData[C].BG[2].VOffset = 0xe1;
-            LineData[C].BG[2].HOffset = 0;
-         }
-         else
-         {
-            LineData[C].BG[2].VOffset = PPU.BG[2].VOffset + 1;
-            LineData[C].BG[2].HOffset = PPU.BG[2].HOffset;
-            LineData[C].BG[3].VOffset = PPU.BG[3].VOffset + 1;
-            LineData[C].BG[3].HOffset = PPU.BG[3].HOffset;
-         }
-      }
-      IPPU.CurrentLine = C + 1;
-   }
-   else
-   {
-      /* if we're not rendering this frame, we still need to update this */
-      /* XXX: Check ForceBlank? Or anything else? */
-      if (IPPU.OBJChanged)
-         S9xSetupOBJ();
-      PPU.RangeTimeOver |= GFX.OBJLines[C].RTOFlags;
-   }
-}
-
-void S9xEndScreenRefresh(void)
-{
-    if (IPPU.RenderThisFrame)
-    {
-        // Mode framebuffer
-        if (!GFX.LineRenderMode)
-        {
-            FLUSH_REDRAW();
-        }
-
-        // Color update
-        if (IPPU.ColorsChanged)
-        {
-            uint32_t saved = PPU.CGDATA[0];
-            IPPU.ColorsChanged = false;
-            PPU.CGDATA[0] = saved;
-        }
-
-        // Mode line render
-        if (!GFX.LineRenderMode)
-        {
-            GFX.Pitch = GFX.Pitch2 = GFX.RealPitch;
-            GFX.PPL = GFX.PPLx2 >> 1;
-        }
-    }
-
-    if (CPU.SRAMModified)
-        CPU.SRAMModified = false;
 }
 
 static INLINE void SelectTileRenderer(bool normal)
@@ -2625,7 +2575,7 @@ static void RenderScreen(uint8_t* Screen, bool sub, bool force_no_add, uint8_t D
    }
 }
 
-void S9xUpdateScreen_Core(void)
+IRAM_ATTR void S9xUpdateScreen_Core(void)
 {
    int32_t x2 = 1;
    uint32_t starty, endy, black;
@@ -3142,14 +3092,262 @@ void S9xUpdateScreen_Core(void)
    IPPU.PreviousLine = IPPU.CurrentLine;
 }
 
-void S9xUpdateScreen(void)
+static void S9xFlushLiveSpanRange(uint32_t start, uint32_t end)
 {
-   // Line rendering mode: just update PreviousLine and return
-   if (GFX.LineRenderMode)
+   if (start >= end)
+      return;
+
+   if (!s_liveLineCallback)
    {
-      IPPU.PreviousLine = IPPU.CurrentLine;
+      IPPU.PreviousLine = end;
+      IPPU.CurrentLine  = end;
       return;
    }
+
+   uint8_t *oldScreen     = GFX.Screen;
+   uint8_t *oldSubScreen  = GFX.SubScreen;
+   uint8_t *oldZBuffer    = GFX.ZBuffer;
+   uint8_t *oldSubZBuffer = GFX.SubZBuffer;
+
+   int      oldDelta      = GFX.Delta;
+   int      oldDepthDelta = GFX.DepthDelta;
+
+   uint32_t oldStartY     = GFX.StartY;
+   uint32_t oldEndY       = GFX.EndY;
+
+   uint32_t oldRealPitch  = GFX.RealPitch;
+   uint32_t oldPitch      = GFX.Pitch;
+   uint32_t oldPitch2     = GFX.Pitch2;
+   uint32_t oldPPL        = GFX.PPL;
+   uint32_t oldPPLx2      = GFX.PPLx2;
+   uint32_t oldZPitch     = GFX.ZPitch;
+
+   const uint32_t linePitch = SNES_WIDTH * sizeof(uint16_t);
+   const uint32_t zPitch    = SNES_WIDTH;
+
+   GFX.RealPitch = linePitch;
+   GFX.Pitch     = linePitch;
+   GFX.Pitch2    = linePitch;
+   GFX.PPL       = SNES_WIDTH;
+   GFX.PPLx2     = SNES_WIDTH * 2;
+   GFX.ZPitch    = zPitch;
+
+   uint8_t *screenBase = (uint8_t *) s_line.main - start * linePitch;
+   uint8_t *subBase    = (uint8_t *) s_line.sub  - start * linePitch;
+   uint8_t *zBase      = (uint8_t *) s_line.z    - start * zPitch;
+   uint8_t *subzBase   = (uint8_t *) s_line.subz - start * zPitch;
+
+   for (uint32_t line = start; line < end; ++line)
+   {
+      IPPU.PreviousLine = line;
+      IPPU.CurrentLine  = line + 1;
+
+      GFX.Screen     = screenBase;
+      GFX.SubScreen  = subBase;
+      GFX.ZBuffer    = zBase;
+      GFX.SubZBuffer = subzBase;
+
+      GFX.Delta      = (int)((uint16_t *)GFX.SubScreen - (uint16_t *)GFX.Screen);
+      GFX.DepthDelta = (int)(GFX.SubZBuffer - GFX.ZBuffer);
+
+      S9xUpdateScreen_Core();
+      s_liveLineCallback(line, s_line.main, IPPU.RenderedScreenWidth);
+
+      screenBase -= linePitch;
+      subBase    -= linePitch;
+      zBase      -= zPitch;
+      subzBase   -= zPitch;
+   }
+
+   GFX.Screen     = oldScreen;
+   GFX.SubScreen  = oldSubScreen;
+   GFX.ZBuffer    = oldZBuffer;
+   GFX.SubZBuffer = oldSubZBuffer;
+
+   GFX.Delta      = oldDelta;
+   GFX.DepthDelta = oldDepthDelta;
+
+   GFX.StartY     = oldStartY;
+   GFX.EndY       = oldEndY;
+
+   GFX.RealPitch  = oldRealPitch;
+   GFX.Pitch      = oldPitch;
+   GFX.Pitch2     = oldPitch2;
+   GFX.PPL        = oldPPL;
+   GFX.PPLx2      = oldPPLx2;
+   GFX.ZPitch     = oldZPitch;
+
+   IPPU.PreviousLine = end;
+   IPPU.CurrentLine  = end;
+}
+
+static void S9xFlushLiveLine(uint32_t line)
+{
+   if (!s_liveLineCallback)
+      return;
+
+   uint8_t *oldScreen     = GFX.Screen;
+   uint8_t *oldSubScreen  = GFX.SubScreen;
+   uint8_t *oldZBuffer    = GFX.ZBuffer;
+   uint8_t *oldSubZBuffer = GFX.SubZBuffer;
+
+   int      oldDelta      = GFX.Delta;
+   int      oldDepthDelta = GFX.DepthDelta;
+
+   uint32_t oldStartY     = GFX.StartY;
+   uint32_t oldEndY       = GFX.EndY;
+
+   uint32_t oldRealPitch  = GFX.RealPitch;
+   uint32_t oldPitch      = GFX.Pitch;
+   uint32_t oldPitch2     = GFX.Pitch2;
+   uint32_t oldPPL        = GFX.PPL;
+   uint32_t oldPPLx2      = GFX.PPLx2;
+   uint32_t oldZPitch     = GFX.ZPitch;
+
+   const uint32_t linePitch = SNES_WIDTH * sizeof(uint16_t);
+   const uint32_t zPitch    = SNES_WIDTH;
+
+   IPPU.PreviousLine = line;
+   IPPU.CurrentLine  = line + 1;
+
+   GFX.RealPitch = linePitch;
+   GFX.Pitch     = linePitch;
+   GFX.Pitch2    = linePitch;
+   GFX.PPL       = SNES_WIDTH;
+   GFX.PPLx2     = SNES_WIDTH * 2;
+   GFX.ZPitch    = zPitch;
+
+   GFX.Screen     = (uint8_t*)s_line.main - line * linePitch;
+   GFX.SubScreen  = (uint8_t*)s_line.sub  - line * linePitch;
+   GFX.ZBuffer    = (uint8_t*)s_line.z    - line * zPitch;
+   GFX.SubZBuffer = (uint8_t*)s_line.subz - line * zPitch;
+
+   GFX.Delta      = (int)((uint16_t*)GFX.SubScreen - (uint16_t*)GFX.Screen);
+   GFX.DepthDelta = (int)(GFX.SubZBuffer - GFX.ZBuffer);
+
+   S9xUpdateScreen_Core();
+   s_liveLineCallback(line, s_line.main, IPPU.RenderedScreenWidth);
+
+   GFX.Screen     = oldScreen;
+   GFX.SubScreen  = oldSubScreen;
+   GFX.ZBuffer    = oldZBuffer;
+   GFX.SubZBuffer = oldSubZBuffer;
+
+   GFX.Delta      = oldDelta;
+   GFX.DepthDelta = oldDepthDelta;
+
+   GFX.StartY     = oldStartY;
+   GFX.EndY       = oldEndY;
+
+   GFX.RealPitch  = oldRealPitch;
+   GFX.Pitch      = oldPitch;
+   GFX.Pitch2     = oldPitch2;
+   GFX.PPL        = oldPPL;
+   GFX.PPLx2      = oldPPLx2;
+   GFX.ZPitch     = oldZPitch;
+}
+
+void S9xFlushLiveSpan(void)
+{
+   S9xFlushLiveSpanRange(IPPU.PreviousLine, IPPU.CurrentLine);
+}
+
+void S9xEndScreenRefresh(void)
+{
+    if (IPPU.RenderThisFrame)
+    {
+        if (!GFX.LineRenderMode)
+        {
+            FLUSH_REDRAW();
+
+            GFX.Pitch  = GFX.Pitch2 = GFX.RealPitch;
+            GFX.PPL    = GFX.PPLx2 >> 1;
+        }
+
+        if (IPPU.ColorsChanged)
+        {
+            uint32_t saved = PPU.CGDATA[0];
+            IPPU.ColorsChanged = false;
+            PPU.CGDATA[0] = saved;
+        }
+    }
+
+    if (CPU.SRAMModified)
+        CPU.SRAMModified = false;
+}
+
+void RenderLine(uint8_t C)
+{
+   if (IPPU.RenderThisFrame)
+   {
+      LineData[C].BG[0].VOffset = PPU.BG[0].VOffset + 1;
+      LineData[C].BG[0].HOffset = PPU.BG[0].HOffset;
+      LineData[C].BG[1].VOffset = PPU.BG[1].VOffset + 1;
+      LineData[C].BG[1].HOffset = PPU.BG[1].HOffset;
+
+      if (PPU.BGMode == 7)
+      {
+         SLineMatrixData* p = &LineMatrixData[C];
+         p->MatrixA = PPU.MatrixA;
+         p->MatrixB = PPU.MatrixB;
+         p->MatrixC = PPU.MatrixC;
+         p->MatrixD = PPU.MatrixD;
+         p->CentreX = PPU.CentreX;
+         p->CentreY = PPU.CentreY;
+      }
+      else
+      {
+         if (Settings.StarfoxHack && PPU.BG[2].VOffset == 0 && PPU.BG[2].HOffset == 0xe000)
+         {
+            LineData[C].BG[2].VOffset = 0xe1;
+            LineData[C].BG[2].HOffset = 0;
+         }
+         else
+         {
+            LineData[C].BG[2].VOffset = PPU.BG[2].VOffset + 1;
+            LineData[C].BG[2].HOffset = PPU.BG[2].HOffset;
+            LineData[C].BG[3].VOffset = PPU.BG[3].VOffset + 1;
+            LineData[C].BG[3].HOffset = PPU.BG[3].HOffset;
+         }
+      }
+
+      IPPU.CurrentLine = C + 1;
+
+      if (GFX.LineRenderMode)
+      {
+         if (!s_liveLineCallback)
+         {
+            PPU.RangeTimeOver |= GFX.OBJLines[C].RTOFlags;
+            IPPU.PreviousLine = C + 1;
+            return;
+         }
+
+         if (S9xIsSourceLineNeeded(C))
+         {
+            S9xFlushLiveLine(C);
+            IPPU.PreviousLine = C + 1;
+            IPPU.CurrentLine  = C + 1;
+         }
+         else
+         {
+            PPU.RangeTimeOver |= GFX.OBJLines[C].RTOFlags;
+            IPPU.PreviousLine = C + 1;
+            IPPU.CurrentLine  = C + 1;
+         }
+
+         return;
+      }
+   }
+}
+
+void S9xUpdateScreen(void)
+{
+   if (GFX.LineRenderMode)
+   {
+      S9xFlushLiveSpan();
+      return;
+   }
+
    S9xUpdateScreen_Core();
 }
 
