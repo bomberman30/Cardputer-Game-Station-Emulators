@@ -23,7 +23,7 @@ static int       s_roiY0     = 0;
 static int       s_roiW      = GX4000_CPC_VISIBLE_W;
 static int       s_roiH      = GX4000_CPC_VISIBLE_H;
 static bool      s_fullscreen = true;
-static int       s_zoomPercent = 110;
+static int       s_zoomPercent = 120;
 
 static bool      s_frameOpen = false;    // display in startWrite/endWrite block
 
