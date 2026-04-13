@@ -12,6 +12,7 @@ typedef struct
     uint8 *ram;
 //    uint8 sram[0x8000];
     uint8 *sram;
+    uint8 *coleco_bios;
     uint8 fcr[4];
     uint8 paused;
     uint8 save;
@@ -31,6 +32,7 @@ extern t_sms sms;
 void sms_frame(int skip_render);
 void sms_init(void);
 int  sms_init_ram(void);
+void sms_shutdown_ram(void);
 void sms_reset(void);
 int  sms_irq_callback(int param);
 void sms_mapper_w(int address, int data);

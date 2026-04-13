@@ -9,10 +9,12 @@ uint8 *linebuf;
 static uint8 *linebuf_ = NULL;
 
 //Each tile takes up 8*8=64 bytes. We have 512 tiles * 4 attribs, so 2K tiles max.
-#define CACHEDTILES 512
 #define ALIGN_DWORD 1 //esp doesn't support unaligned word writes
 #define TILE_BYTES      64
 #define MAX_TILE_KEYS   (512*4)      // 2K entrées (tile + attr<<9)
+
+static int g_cache_tiles = 512;
+static uint8 g_console_type = TYPE_SMS;
 
 static int16_t *cachePtr = NULL;              // (tile+attr<<9) -> cache tile store index (i<<6); -1 if not cached
 static uint8_t *cacheStore = NULL;            // Tile store
@@ -21,6 +23,11 @@ static uint8_t *cacheStoreUsed = NULL;        // Marks if a tile is used
 uint8 is_vram_dirty;
 int cacheKillPtr=0;
 int freePtr=0;
+
+void render_set_console_type(uint8 type)
+{
+    g_console_type = type;
+}
 
 /* Pixel look-up table */
 //uint8 lut[0x10000];
@@ -44,6 +51,7 @@ int vp_hend;
 void render_bg_sms(int line);
 void render_bg_gg(int line);
 void render_obj(int line);
+void render_obj_tms(int line);
 void palette_sync(int index);
 void render_reset(void);
 void render_init(void);
@@ -51,9 +59,12 @@ void render_init(void);
 static int render_alloc_buffers(void) {
     if (cachePtr && cacheStore && cacheStoreUsed && linebuf_) return 1;
 
+    /* SG-1000/Coleco use simpler content on constrained targets: keep cache footprint lower. */
+    g_cache_tiles = (g_console_type == TYPE_SMS || g_console_type == TYPE_GG) ? 512 : 128;
+
     cachePtr       = (int16_t*) malloc(sizeof(int16_t) * MAX_TILE_KEYS);
-    cacheStore     = (uint8_t*)  malloc((size_t)CACHEDTILES * TILE_BYTES);
-    cacheStoreUsed = (uint8_t*)  malloc((size_t)CACHEDTILES);
+    cacheStore     = (uint8_t*)  malloc((size_t)g_cache_tiles * TILE_BYTES);
+    cacheStoreUsed = (uint8_t*)  malloc((size_t)g_cache_tiles);
     linebuf_       = (uint8_t*)  malloc(256);
 
     if (!cachePtr || !cacheStore || !cacheStoreUsed || !linebuf_) {
@@ -65,8 +76,8 @@ static int render_alloc_buffers(void) {
     }
 
     memset(cachePtr, 0xFF, sizeof(int16_t) * MAX_TILE_KEYS);
-    memset(cacheStoreUsed, 0, (size_t)CACHEDTILES);
-    memset(cacheStore, 0, (size_t)CACHEDTILES * TILE_BYTES);
+    memset(cacheStoreUsed, 0, (size_t)g_cache_tiles);
+    memset(cacheStore, 0, (size_t)g_cache_tiles * TILE_BYTES);
     memset(linebuf_, 0, 256);
 
     is_vram_dirty = 1;
@@ -78,12 +89,16 @@ static void render_free_buffers(void) {
     free(cachePtr);       cachePtr = NULL;
     free(cacheStore);     cacheStore = NULL;
     free(cacheStoreUsed); cacheStoreUsed = NULL;
+    free(linebuf_);       linebuf_ = NULL;
+    linebuf = NULL;
+    freePtr = 0;
+    cacheKillPtr = 0;
 }
 
 void vramMarkTileDirty(int index) {
 	int i=index;
 	while (i<0x800) {
-		if (cachePtr[i]!=-1) {
+        if (cachePtr && cacheStoreUsed && cachePtr[i]!=-1) {
 			freePtr=cachePtr[i]>>6;
 //			printf("Freeing cache loc %d for tile %d\n", freePtr, index);
 			cacheStoreUsed[freePtr]=0;
@@ -106,13 +121,13 @@ uint8 *getCache(int tile, int attr) {
 	do {
 		i=freePtr;
 		n=0;
-		while (cacheStoreUsed[i] && n<CACHEDTILES) {
+        while (cacheStoreUsed[i] && n<g_cache_tiles) {
 			i++;
 			n++;
-			if (i==CACHEDTILES) i=0;
+            if (i==g_cache_tiles) i=0;
 		}
 
-		if (n==CACHEDTILES) {
+        if (n==g_cache_tiles) {
 			//printf("Eek, tile cache overflow\n");
 			//Crap, out of cache. Kill a tile.
 			vramMarkTileDirty(cacheKillPtr++);
@@ -251,6 +266,11 @@ void render_init(void)
     render_reset();
 }
 
+void render_shutdown(void)
+{
+    render_free_buffers();
+}
+
 /* Reset the rendering data */
 void render_reset(void)
 {
@@ -265,9 +285,11 @@ void render_reset(void)
         palette_sync(i);
     }
 
+    make_tms_tables();
+
     /* Invalidate pattern cache */
-	for (i=0; i<512*4; i++) cachePtr[i]=-1;
-	for (i=0; i<512; i++) vramMarkTileDirty(i);
+    for (i=0; i<512*4; i++) cachePtr[i]=-1;
+    for (i=0; i<512; i++) vramMarkTileDirty(i);
 
     /* Set up viewport size */
     if(IS_GG)
@@ -285,8 +307,10 @@ void render_reset(void)
         vp_hend   = 32;
     }
 
-    /* Pick render routine */
-    render_bg = IS_GG ? render_bg_gg : render_bg_sms;
+    /* Reserve the TMS renderer to SG-1000/Coleco to avoid SMS/GG regressions. */
+    render_bg = (IS_SG1000 || IS_COLECO)
+        ? render_bg_tms
+        : (IS_GG ? render_bg_gg : render_bg_sms);
 }
 
 
@@ -305,7 +329,7 @@ void render_line(int line)
     linebuf = linebuf_;
 
     /* Blank line */
-    if( (!(vdp.reg[1] & 0x40)) || (((vdp.reg[2] & 1) == 0) && (IS_SMS)))
+    if((!(vdp.reg[1] & 0x40)) || (((vdp.reg[2] & 1) == 0) && IS_SMS))
     {
         memset(linebuf + (vp_hstart << 3), BACKDROP_COLOR, BMP_WIDTH);
     }
@@ -315,7 +339,15 @@ void render_line(int line)
         render_bg(line);
 
         /* Draw sprites */
-        render_obj(line);
+        if (IS_SG1000 || IS_COLECO)
+        {
+            parse_line(line);
+            render_obj_tms(line);
+        }
+        else
+        {
+            render_obj(line);
+        }
 
         /* Blank leftmost column of display */
         if(vdp.reg[0] & 0x20)
@@ -606,6 +638,20 @@ uint8_t cramd[0x20] = {0};  // in 3:3:2 r:g:b
 void palette_sync(int index)
 {
     int r, g, b;
+    static const uint8_t tms_palette[16] = {
+        0x00, 0x00, 0x24, 0x47,
+        0x03, 0x0f, 0xa0, 0x2f,
+        0xc0, 0xe3, 0xe4, 0xe7,
+        0x22, 0xb3, 0x92, 0xff,
+    };
+
+    if (IS_SG1000 || IS_COLECO)
+    {
+        cramd[index & 0x1F] = tms_palette[index & 0x0F];
+        cramd[(index & 0x0F) | 0x10] = tms_palette[index & 0x0F];
+        return;
+    }
+
     // https://segaretro.org/Palette#Game_Gear_palette
     if(IS_GG)
     {

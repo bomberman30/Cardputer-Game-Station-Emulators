@@ -101,11 +101,27 @@ void audio_init(int rate)
 
 void system_shutdown(void)
 {
+    audio_shutdown();
+    render_shutdown();
+    tms_shutdown();
+    vdp_shutdown_vram();
+    sms_shutdown_ram();
+
     if(snd.enabled)
     {
 //        OPLL_delete(opll);
 //        OPLL_close();
     }
+}
+
+void audio_shutdown(void)
+{
+    free(snd.buffer[0]);
+    free(snd.buffer[1]);
+    snd.buffer[0] = NULL;
+    snd.buffer[1] = NULL;
+    snd.enabled = 0;
+    snd.bufsize = 0;
 }
 
 

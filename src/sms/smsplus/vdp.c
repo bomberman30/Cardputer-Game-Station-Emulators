@@ -6,9 +6,29 @@
 /* VDP context */
 t_vdp vdp;
 
+static void vdp_update_mode(void)
+{
+    int m1 = (vdp.reg[1] >> 4) & 1;
+    int m2 = (vdp.reg[0] >> 1) & 1;
+    int m3 = (vdp.reg[1] >> 3) & 1;
+    int m4 = (vdp.reg[0] >> 2) & 1;
+
+    vdp.mode = (m4 << 3) | (m3 << 2) | (m2 << 1) | m1;
+    vdp.height = 192;
+    vdp.lpf = LINES_PER_FRAME;
+    vdp.ntab = (vdp.reg[2] << 10) & 0x3800;
+    vdp.pn   = (vdp.reg[2] << 10) & 0x3C00;
+    vdp.ct   = (vdp.reg[3] << 6) & 0x3FC0;
+    vdp.pg   = (vdp.reg[4] << 11) & 0x3800;
+    vdp.satb = (vdp.reg[5] << 7) & 0x3F00;
+    vdp.sa   = (vdp.reg[5] << 7) & 0x3F80;
+    vdp.sg   = (vdp.reg[6] << 11) & 0x3800;
+    vdp.bd   = (vdp.reg[7] & 0x0F);
+}
+
 int vdp_init_vram(void)
 {
-    if (vdp.vram) return 1; // déjà fait
+    if (vdp.vram) return 1;
 
     void *p = NULL;
     p = malloc(SMS_VDP_VRAM_SIZE);
@@ -83,8 +103,19 @@ void vdp_init(void)
 /* Reset VDP emulation */
 void vdp_reset(void)
 {
+    uint8* vram = vdp.vram;
     memset(&vdp, 0, sizeof(t_vdp));
+    vdp.vram = vram;
     vdp.limit = 1;
+    vdp.height = 192;
+    vdp.lpf = LINES_PER_FRAME;
+    vdp_update_mode();
+}
+
+void vdp_shutdown_vram(void)
+{
+    free(vdp.vram);
+    vdp.vram = NULL;
 }
 
 
@@ -130,9 +161,8 @@ void vdp_ctrl_w(int data)
             /* Store register data */
             vdp.reg[r] = d;
 
-            /* Update table addresses */
-            vdp.ntab = (vdp.reg[2] << 10) & 0x3800;
-            vdp.satb = (vdp.reg[5] << 7) & 0x3F00;
+            /* Update derived mode/tables */
+            vdp_update_mode();
         }
     }
 }
@@ -154,7 +184,8 @@ int vdp_ctrl_r(void)
     if(sms.irq == 1)
     {
         sms.irq = 0;
-        z80_set_irq_line(0, CLEAR_LINE);
+        if(IS_COLECO) z80_set_nmi_line(CLEAR_LINE);
+        else          z80_set_irq_line(0, CLEAR_LINE);
     }
 
     /* Return the old status flags */
@@ -238,6 +269,11 @@ void vdp_run(void)
         if(vdp.line == 0xC0)
         {
             vdp.status |= 0x80;
+            if(IS_COLECO && (vdp.reg[1] & 0x20))
+            {
+                sms.irq = 1;
+                z80_set_nmi_line(ASSERT_LINE);
+            }
         }
 
         if(vdp.line == 0)
@@ -258,7 +294,8 @@ void vdp_run(void)
         if((vdp.status & 0x40) && (vdp.reg[0] & 0x10))
         {
             sms.irq = 1;
-            z80_set_irq_line(0, ASSERT_LINE);
+            if(IS_COLECO) z80_set_nmi_line(ASSERT_LINE);
+            else          z80_set_irq_line(0, ASSERT_LINE);
         }
     }
     else
@@ -268,7 +305,8 @@ void vdp_run(void)
         if((vdp.line < 0xE0) && (vdp.status & 0x80) && (vdp.reg[1] & 0x20))
         {
             sms.irq = 1;
-            z80_set_irq_line(0, ASSERT_LINE);
+            if(IS_COLECO) z80_set_nmi_line(ASSERT_LINE);
+            else          z80_set_irq_line(0, ASSERT_LINE);
         }
     }
 }

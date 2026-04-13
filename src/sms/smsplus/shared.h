@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 //#include <malloc.h>
+#include <assert.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -25,6 +26,7 @@
 #include "sms.h"
 #include "vdp.h"
 #include "render.h"
+#include "tms.h"
 #include "sn76496.h"
 #include "system.h"
 

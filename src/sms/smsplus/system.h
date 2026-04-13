@@ -10,9 +10,14 @@
 /* Console / cartridge types */
 #define TYPE_SMS            (0)
 #define TYPE_GG             (1)
+#define TYPE_SG1000         (2)
+#define TYPE_COLECO         (3)
 
 #define IS_GG               (cart.type == TYPE_GG)
 #define IS_SMS              (cart.type == TYPE_SMS)
+
+#define IS_SG1000           (cart.type == TYPE_SG1000)
+#define IS_COLECO           (cart.type == TYPE_COLECO)
 
 /* Macro to get offset to actual display within bitmap */
 #define BMP_X_OFFSET        ((cart.type == TYPE_GG) ? 48 : 0)
@@ -37,6 +42,11 @@
 #define INPUT_PAUSE       (0x00000002)    /* Master System only */
 #define INPUT_SOFT_RESET  (0x00000004)    /* Master System only */
 #define INPUT_HARD_RESET  (0x00000008)    /* Works for either console type */
+
+/* Coleco keypad state (stored in input.system upper bits). */
+#define INPUT_COLECO_KEYPAD_SHIFT (8)
+#define INPUT_COLECO_KEYPAD_MASK  (0x00000F00)
+#define INPUT_COLECO_KEYPAD_NONE  (0x00000F00)
 
 /* User input structure */
 typedef struct
@@ -95,5 +105,6 @@ void system_load_sram(void);
 void system_save_state(void *fd);
 void system_load_state(void *fd);
 void audio_init(int rate);
+void audio_shutdown(void);
 
 #endif /* _SYSTEM_H_ */
