@@ -139,6 +139,8 @@ static void lynx_display_task(void *arg)
 {
   (void)arg;
 
+  M5Cardputer.Display.startWrite();
+
   for (;;) {
     LynxFrameMsg msg;
     if (xQueueReceive(s_frameQ, &msg, portMAX_DELAY) != pdTRUE) {
@@ -184,8 +186,6 @@ static void lynx_display_task(void *arg)
       continue;
     }
 
-    M5Cardputer.Display.startWrite();
-
     for (int y = 0; y < dstH; ++y) {
       float srcYf = srcCY + ( (float)y - dstCY ) * invScaleY;
       int   srcY  = (int)srcYf;
@@ -205,12 +205,13 @@ static void lynx_display_task(void *arg)
 
       int dstY = yOffset + y;
       M5Cardputer.Display.setAddrWindow(xOffset, dstY, dstW, 1);
-      M5Cardputer.Display.pushPixels(s_lineBuf, dstW);
+      M5Cardputer.Display.writePixels(s_lineBuf, dstW);
     }
 
-    M5Cardputer.Display.endWrite();
     vTaskDelay(1);
   }
+
+  M5Cardputer.Display.endWrite();
 }
 
 // ================== PUBLIC API ==================
