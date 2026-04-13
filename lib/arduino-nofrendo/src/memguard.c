@@ -31,6 +31,7 @@
 #include "noftypes.h"
 #include "memguard.h"
 #include "log.h"
+#include "osd.h"
 
 /* Maximum number of allocated blocks at any one time */
 #define MAX_BLOCKS 4096
@@ -329,16 +330,9 @@ char *_my_strdup(const char *string, char *file, int line)
 void *_my_malloc(int size)
 {
    void *temp;
-   char fail[256];
 
    // temp = malloc(size);
    temp = mem_alloc(size, true);
-
-   if (NULL == temp)
-   {
-      sprintf(fail, "malloc: out of memory.  block size: %d\n", size);
-      ASSERT_MSG(fail);
-   }
 
    return temp;
 }
@@ -346,13 +340,8 @@ void *_my_malloc(int size)
 /* free a pointer allocated with my_malloc */
 void _my_free(void **data)
 {
-   char fail[256];
-
    if (NULL == data || NULL == *data)
-   {
-      sprintf(fail, "free: attempted to free NULL pointer.\n");
-      ASSERT_MSG(fail);
-   }
+      return;
 
    free(*data);
    *data = NULL; /* NULL our source */

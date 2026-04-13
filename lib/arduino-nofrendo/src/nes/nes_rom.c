@@ -30,7 +30,6 @@
 
 #include "../noftypes.h"
 #include "nes_rom.h"
-#include "../intro.h"
 #include "nes_mmc.h"
 #include "nes_ppu.h"
 #include "nes.h"
@@ -465,12 +464,13 @@ rominfo_t *rom_load(const char *filename, ppu_t *ppu)
    fp = rom_findrom(filename, rominfo);
 
    if (NULL == fp)
-      gui_sendmsg(GUI_RED, "%s not found, will use default ROM", filename);
+   {
+      gui_sendmsg(GUI_RED, "%s not found", filename);
+      goto _fail;
+   }
 
    /* Get the header and stick it into rominfo struct */
-   if (NULL == fp)
-      intro_get_header(rominfo);
-   else if (rom_getheader(fp, rominfo))
+   if (rom_getheader(fp, rominfo))
       goto _fail;
 
    /* Make sure we really support the mapper */
@@ -490,17 +490,11 @@ rominfo_t *rom_load(const char *filename, ppu_t *ppu)
    if (NULL != fp)
       rom_loadtrainer(fp, rominfo);
 
-   if (NULL == fp)
-   {
-      if (intro_get_rom(rominfo))
-         goto _fail;
-   }
-   else if (rom_loadrom(fp, rominfo))
+   if (rom_loadrom(fp, rominfo))
       goto _fail;
 
    /* Close the file */
-   if (NULL != fp)
-      _fclose(fp);
+   _fclose(fp);
 
    rom_loadsram(rominfo);
 
