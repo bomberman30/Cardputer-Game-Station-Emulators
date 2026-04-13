@@ -28,14 +28,11 @@ extern "C" {
 /* ============================= Etat ============================= */
 
 static char*        g_save_path   = nullptr;
-static TaskHandle_t g_task        = nullptr;
+// static TaskHandle_t g_task        = nullptr;
 static TickType_t   g_next_check  = 0;
 static TickType_t   g_next_allow  = 0;
 static TickType_t   g_first_dirty = 0;
 static TickType_t   g_last_save   = 0;
-
-static volatile bool g_flag_check = false;
-static volatile bool g_flag_flush = false;
 
 /* ============================ Format ============================ */
 
@@ -279,39 +276,6 @@ extern "C" void ngc_save_load(void) {
          g_save_path, (long)st.st_size);
 }
 
-/* ============================= Task ============================= */
-
-static void SaveTask(void* /*arg*/) {
-  for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-    bool do_check = g_flag_check;
-    bool do_flush = g_flag_flush;
-    g_flag_check = false;
-    g_flag_flush = false;
-
-    TickType_t now = xTaskGetTickCount();
-
-    if (do_check) {
-      if (ngpSaveBufDirty) {
-        if (g_first_dirty == 0) g_first_dirty = now;
-        if (now >= g_next_allow) {
-          do_flush = true;
-        }
-      }
-    }
-
-    if (do_flush && now >= g_next_allow) {
-      bool ok = save_now();
-      if (ok) {
-        g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
-      } else {
-        EMU_LOG("[NGC][SAVE] save failed, will retry on next tick\n");
-      }
-    }
-  }
-}
-
 /* ============================== API ============================= */
 
 extern "C" void ngc_save_init(const char* romPathOrName) {
@@ -335,20 +299,6 @@ extern "C" void ngc_save_init(const char* romPathOrName) {
   g_next_allow  = 0;
   g_first_dirty = 0;
   g_last_save   = 0;
-  g_flag_check  = false;
-  g_flag_flush  = false;
-
-  if (!g_task) {
-    xTaskCreatePinnedToCore(
-      SaveTask,
-      "NGC_SaveTask",
-      3072,
-      nullptr,
-      6,
-      &g_task,
-      0
-    );
-  }
 
   EMU_LOG("[NGC][SAVE] path=%s\n", g_save_path);
 }
@@ -362,14 +312,20 @@ extern "C" void ngc_save_tick(void) {
   if (now < g_next_check) return;
 
   g_next_check = now + pdMS_TO_TICKS(SAVE_CHECK_MS);
-  g_flag_check = true;
 
-  if (g_task) xTaskNotifyGive(g_task);
+  // Direct save logic (sans thread)
+  if (g_first_dirty == 0) g_first_dirty = now;
+  if (now >= g_next_allow) {
+    if (save_now()) {
+      g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
+    } else {
+      EMU_LOG("[NGC][SAVE] save failed, will retry on next tick\n");
+    }
+  }
 }
 
 extern "C" void ngc_save_request_flush(void) {
-  g_flag_flush = true;
-  if (g_task) xTaskNotifyGive(g_task);
+  save_now();
 }
 
 extern "C" void ngc_save_force_flush(void) {
