@@ -9,6 +9,7 @@
 #include "gfx.h"
 #include "apu.h"
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 
 extern bool S9xIsSourceLineNeeded(uint32_t srcY);
 
@@ -262,11 +263,12 @@ bool S9xInitGFX(void)
 
 bool S9xInitLineBuffers(void)
 {
-   // buffer lines
-   s_line.main  = malloc(sizeof(uint16_t) * SNES_WIDTH * 2); // hi-res
-   s_line.sub   = malloc(sizeof(uint16_t) * SNES_WIDTH * 2);
-   s_line.z     = malloc(sizeof(uint8_t)  * SNES_WIDTH * 2);
-   s_line.subz  = malloc(sizeof(uint8_t)  * SNES_WIDTH * 2);
+   // buffer lines - allocate from internal SRAM with DMA capability for better alignment
+   const uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+   s_line.main  = heap_caps_malloc(sizeof(uint16_t) * SNES_WIDTH * 2, caps); // hi-res
+   s_line.sub   = heap_caps_malloc(sizeof(uint16_t) * SNES_WIDTH * 2, caps);
+   s_line.z     = heap_caps_malloc(sizeof(uint8_t)  * SNES_WIDTH * 2, caps);
+   s_line.subz  = heap_caps_malloc(sizeof(uint8_t)  * SNES_WIDTH * 2, caps);
 
    if (!s_line.main || !s_line.sub || !s_line.z || !s_line.subz)
       return false;

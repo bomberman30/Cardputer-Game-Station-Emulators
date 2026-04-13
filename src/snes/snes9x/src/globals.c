@@ -42,6 +42,9 @@ SBG BG;
 
 SGFX GFX;
 
+#ifndef SNES_NO_SOUND
+#ifndef SNES_NO_APU
+
 const int32_t NoiseFreq [32] =
 {
    0, 16, 21, 25, 31, 42, 50, 63, 84, 100, 125, 167, 200, 250, 333,
@@ -56,6 +59,7 @@ const uint8_t APUROM [64] =
    0xCB, 0xF4, 0xD7, 0x00, 0xFC, 0xD0, 0xF3, 0xAB, 0x01, 0x10, 0xEF, 0x7E, 0xF4, 0x10, 0xEB, 0xBA,
    0xF6, 0xDA, 0x00, 0xBA, 0xF4, 0xC4, 0xF4, 0xDD, 0x5D, 0xD0, 0xDB, 0x1F, 0x00, 0x00, 0xC0, 0xFF
 };
+
 
 /* Raw SPC700 instruction cycle lengths */
 const uint8_t S9xAPUCycleLengths [256] =
@@ -81,9 +85,9 @@ const uint8_t S9xAPUCycleLengths [256] =
 
 /* Actual data used by CPU emulation, will be scaled by APUReset routine
  * to be relative to the 65c816 instruction lengths. */
-#ifndef SNES_NO_SOUND
-#ifndef SNES_NO_APU
+
    uint8_t S9xAPUCycles [256];
+   
 #endif
 #endif
 
