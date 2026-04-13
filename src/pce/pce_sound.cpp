@@ -9,6 +9,7 @@
 
 extern "C" {
   #include "pce-go/psg.h"
+#include "share/emu_log_cpp.h"
 }
 
 static constexpr int kChannel = 0;
@@ -25,7 +26,7 @@ static int s_sampleRate        = 22050;
 
 static void pce_audio_task(void* arg)
 {
-  printf("[PCE][AUDIO] task started. frames=%d, samples=%d, rate=%d\n",
+  EMU_LOG("[PCE][AUDIO] task started. frames=%d, samples=%d, rate=%d\n",
          (int)kNumFrames, (int)kNumSamples, s_sampleRate);
 
   while (s_running) {
@@ -57,7 +58,7 @@ static void pce_audio_task(void* arg)
     s_flip ^= 1;
   }
 
-  printf("[PCE][AUDIO] task exit\n");
+  EMU_LOG("[PCE][AUDIO] task exit\n");
   vTaskDelete(nullptr);
 }
 
@@ -78,7 +79,7 @@ extern "C" bool pce_sound_init(int sample_rate)
       MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT
     );
     if (!s_buf[i]) {
-      printf("[PCE][AUDIO] buffer alloc failed (%d)\n", i);
+      EMU_LOG("[PCE][AUDIO] buffer alloc failed (%d)\n", i);
       return false;
     }
   }
@@ -114,7 +115,7 @@ extern "C" bool pce_sound_init(int sample_rate)
   );
 
   if (ok != pdPASS) {
-    printf("[PCE][AUDIO] xTaskCreate failed\n");
+    EMU_LOG("[PCE][AUDIO] xTaskCreate failed\n");
     s_audioTaskHandle = nullptr;
     s_running = false;
     return false;

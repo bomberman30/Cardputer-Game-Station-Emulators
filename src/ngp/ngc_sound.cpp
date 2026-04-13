@@ -5,6 +5,7 @@
 
 extern "C" {
   #include "ngp/race/types.h"     // _u16
+#include "share/emu_log_cpp.h"
   void sound_init(int SampleRate);
   void sound_update(_u16* chip_buffer, int length_bytes); // PSG
   void dac_update  (_u16* dac_buffer,  int length_bytes); // DAC
@@ -86,7 +87,7 @@ void ngc_sound_init(void) {
   }
 
   if (!ngc_sound_alloc_buffers()) {
-    printf("[AUDIO] buffer alloc failed (kChunk=%d)\n", kChunk);
+    EMU_LOG("[AUDIO] buffer alloc failed (kChunk=%d)\n", kChunk);
   }
 
   M5Cardputer.Speaker.setVolume(80);

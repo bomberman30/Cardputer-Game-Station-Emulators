@@ -13,6 +13,7 @@
 #include "sms/sound.h"
 #include "sms/input.h"
 #include "sms/save.h"
+#include "share/emu_log_cpp.h"
 
 // WARNING: The real bios is needed for Coleco emulation
 // It is not included in the repo for legal reasons
@@ -51,7 +52,7 @@ void run_sms(const uint8_t* romPtr, size_t romLen, SmsConsoleMode mode, const ch
   }
 
   if (!videoBuf || (needsSram && !sram)) {
-    printf("SMS core alloc failed: video=%p sram=%p\n", videoBuf, sram);
+    EMU_LOG("SMS core alloc failed: video=%p sram=%p\n", videoBuf, sram);
     free(videoBuf);
     free(sram);
     return;
@@ -86,7 +87,7 @@ void run_sms(const uint8_t* romPtr, size_t romLen, SmsConsoleMode mode, const ch
   
   z80_allocate_flag_tables();
   if (!sms_init_ram()) {
-    printf("SMS WRAM alloc failed\n");
+    EMU_LOG("SMS WRAM alloc failed\n");
     free(videoBuf);
     free(sram);
     sms.coleco_bios = nullptr;
@@ -155,7 +156,7 @@ void run_sms(const uint8_t* romPtr, size_t romLen, SmsConsoleMode mode, const ch
     //   float avgRT = avgFrameTimeRT / frameCount;
     //   float fpsRT = 1000000.0f / avgRT;
 
-    //   printf("[Perf] raw=%.1f us (%.1f fps, %.1f%%) | realtime=%.1f us (%.2f fps)\n",
+    //   EMU_LOG("[Perf] raw=%.1f us (%.1f fps, %.1f%%) | realtime=%.1f us (%.2f fps)\n",
     //         avgRaw, fpsRaw, speedPct, avgRT, fpsRT);
 
     //   avgFrameTime = 0;

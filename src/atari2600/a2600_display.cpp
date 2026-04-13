@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <string>
 #include "esp_heap_caps.h"
+#include "share/emu_log_cpp.h"
 
 static bool s_use_ext = false;
 static bool s_use_12bit = false;
@@ -346,7 +347,7 @@ static void a2600_display_task(void* arg)
         a2600_compute_plan(slot.width, slot.height, slot.isPal, plan);
 
         if (!a2600_prepare_luts(plan)) {
-            printf("[A2600][DISP] buffer allocation failed\n");
+            EMU_LOG("[A2600][DISP] buffer allocation failed\n");
             portENTER_CRITICAL(&s_slotMux);
             s_slotState[slotIndex] = A2600_SLOT_FREE;
             portEXIT_CRITICAL(&s_slotMux);
@@ -413,14 +414,14 @@ void a2600_display_init(void)
     a2600_reset_layout_cache();
 
     if (!a2600_alloc_slots()) {
-        printf("[A2600][DISP] slot allocation failed\n");
+        EMU_LOG("[A2600][DISP] slot allocation failed\n");
         return;
     }
 
     if (!s_frameQ) {
         s_frameQ = xQueueCreate(2, sizeof(int));
         if (!s_frameQ) {
-            printf("[A2600][DISP] queue create failed\n");
+            EMU_LOG("[A2600][DISP] queue create failed\n");
         }
     }
 }
@@ -443,7 +444,7 @@ void a2600_display_start(void)
         );
 
         if (ok != pdPASS) {
-            printf("[A2600][DISP] task create failed\n");
+            EMU_LOG("[A2600][DISP] task create failed\n");
             if (s_displayTask) {
                 vTaskDelete(s_displayTask);
             }
@@ -524,7 +525,7 @@ void a2600_display_toggle_internal_view_mode(void)
             ? A2600InternalViewMode::Wide
             : A2600InternalViewMode::PixelPerfect;
     a2600_display_set_internal_view_mode(nextMode, true);
-    printf("[A2600][DISP] internal view=%s\n",
+    EMU_LOG("[A2600][DISP] internal view=%s\n",
            a2600_display_internal_view_mode_label(s_internalViewMode));
 }
 

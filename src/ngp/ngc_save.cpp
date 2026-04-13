@@ -14,6 +14,7 @@
 
 extern "C" {
 #include "ngp/race/flash.h"
+#include "share/emu_log_cpp.h"
 }
 
 /* ============================ Config ============================ */
@@ -118,7 +119,7 @@ static bool save_now() {
   if (!save_buf_ready()) return false;
 
   if (!share::gameSaveEnsureParentReady(NGC_SAVE_DIR)) {
-    printf("[NGC][SAVE] storage path not ready, skip save\n");
+    EMU_LOG("[NGC][SAVE] storage path not ready, skip save\n");
     return false;
   }
 
@@ -138,14 +139,14 @@ static bool save_now() {
   FILE* f = fopen(g_save_path, "wb");
   if (!f) {
     share::setGameIsSaving(false);
-    printf("[NGC][SAVE] open failed for %s\n", g_save_path);
+    EMU_LOG("[NGC][SAVE] open failed for %s\n", g_save_path);
     return false;
   }
 
   if (fwrite(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) {
     fclose(f);
     share::setGameIsSaving(false);
-    printf("[NGC][SAVE] failed writing header\n");
+    EMU_LOG("[NGC][SAVE] failed writing header\n");
     return false;
   }
 
@@ -159,7 +160,7 @@ static bool save_now() {
     if (!get_window_block_info(i, &offset, &size)) {
       fclose(f);
       share::setGameIsSaving(false);
-      printf("[NGC][SAVE] invalid block index %d\n", i);
+      EMU_LOG("[NGC][SAVE] invalid block index %d\n", i);
       return false;
     }
 
@@ -171,14 +172,14 @@ static bool save_now() {
     if (fwrite(&bh, 1, sizeof(bh), f) != sizeof(bh)) {
       fclose(f);
       share::setGameIsSaving(false);
-      printf("[NGC][SAVE] failed writing block header %d\n", i);
+      EMU_LOG("[NGC][SAVE] failed writing block header %d\n", i);
       return false;
     }
 
     if (fwrite(ngpSaveBuf + offset, 1, size, f) != size) {
       fclose(f);
       share::setGameIsSaving(false);
-      printf("[NGC][SAVE] failed writing block data %d\n", i);
+      EMU_LOG("[NGC][SAVE] failed writing block data %d\n", i);
       return false;
     }
   }
@@ -191,7 +192,7 @@ static bool save_now() {
   g_last_save = xTaskGetTickCount();
   g_first_dirty = 0;
 
-  printf("[NGC][SAVE] saved %d dirty block(s) to %s\n",
+  EMU_LOG("[NGC][SAVE] saved %d dirty block(s) to %s\n",
          dirtyCount, g_save_path);
   return true;
 }
@@ -202,37 +203,37 @@ extern "C" void ngc_save_load(void) {
   if (!g_save_path) return;
 
   if (!save_buf_ready()) {
-    printf("[NGC][SAVE] skip load (save buffer inactive)\n");
+    EMU_LOG("[NGC][SAVE] skip load (save buffer inactive)\n");
     return;
   }
 
   if (!share::gameSaveEnsureParentReady(NGC_SAVE_DIR)) {
-    printf("[NGC][SAVE] skip load (storage not ready)\n");
+    EMU_LOG("[NGC][SAVE] skip load (storage not ready)\n");
     return;
   }
 
   struct stat st;
   if (stat(g_save_path, &st) != 0) {
-    printf("[NGC][SAVE] no existing save file for %s\n", g_save_path);
+    EMU_LOG("[NGC][SAVE] no existing save file for %s\n", g_save_path);
     return;
   }
 
   FILE* f = fopen(g_save_path, "rb");
   if (!f) {
-    printf("[NGC][SAVE] load open failed for %s\n", g_save_path);
+    EMU_LOG("[NGC][SAVE] load open failed for %s\n", g_save_path);
     return;
   }
 
   NgcSaveHeader hdr;
   if (fread(&hdr, 1, sizeof(hdr), f) != sizeof(hdr)) {
     fclose(f);
-    printf("[NGC][SAVE] failed reading header\n");
+    EMU_LOG("[NGC][SAVE] failed reading header\n");
     return;
   }
 
   if (hdr.magic != NGC_SAVE_MAGIC || hdr.version != NGC_SAVE_VERSION) {
     fclose(f);
-    printf("[NGC][SAVE] invalid save header in %s\n", g_save_path);
+    EMU_LOG("[NGC][SAVE] invalid save header in %s\n", g_save_path);
     return;
   }
 
@@ -240,7 +241,7 @@ extern "C" void ngc_save_load(void) {
     NgcSaveBlockHeader bh;
     if (fread(&bh, 1, sizeof(bh), f) != sizeof(bh)) {
       fclose(f);
-      printf("[NGC][SAVE] failed reading block header #%u\n", i);
+      EMU_LOG("[NGC][SAVE] failed reading block header #%u\n", i);
       return;
     }
 
@@ -248,13 +249,13 @@ extern "C" void ngc_save_load(void) {
     size_t size = 0;
     if (!get_window_block_info((int)bh.index, &offset, &size)) {
       fclose(f);
-      printf("[NGC][SAVE] invalid block index %u\n", (unsigned)bh.index);
+      EMU_LOG("[NGC][SAVE] invalid block index %u\n", (unsigned)bh.index);
       return;
     }
 
     if (bh.size != size) {
       fclose(f);
-      printf("[NGC][SAVE] invalid block size for index %u (%u != %u)\n",
+      EMU_LOG("[NGC][SAVE] invalid block size for index %u (%u != %u)\n",
              (unsigned)bh.index,
              (unsigned)bh.size,
              (unsigned)size);
@@ -263,7 +264,7 @@ extern "C" void ngc_save_load(void) {
 
     if (fread(ngpSaveBuf + offset, 1, size, f) != size) {
       fclose(f);
-      printf("[NGC][SAVE] failed reading block data index %u\n",
+      EMU_LOG("[NGC][SAVE] failed reading block data index %u\n",
              (unsigned)bh.index);
       return;
     }
@@ -274,7 +275,7 @@ extern "C" void ngc_save_load(void) {
   clear_dirty_window_blocks();
   ngpSaveBufDirty = 0;
 
-  printf("[NGC][SAVE] loaded save from %s (%ld bytes file)\n",
+  EMU_LOG("[NGC][SAVE] loaded save from %s (%ld bytes file)\n",
          g_save_path, (long)st.st_size);
 }
 
@@ -305,7 +306,7 @@ static void SaveTask(void* /*arg*/) {
       if (ok) {
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
       } else {
-        printf("[NGC][SAVE] save failed, will retry on next tick\n");
+        EMU_LOG("[NGC][SAVE] save failed, will retry on next tick\n");
       }
     }
   }
@@ -315,14 +316,14 @@ static void SaveTask(void* /*arg*/) {
 
 extern "C" void ngc_save_init(const char* romPathOrName) {
   if (!save_buf_ready()) {
-    printf("[NGC][SAVE] task not started (save buffer inactive)\n");
+    EMU_LOG("[NGC][SAVE] task not started (save buffer inactive)\n");
     return;
   }
 
   if (!g_save_path) {
     g_save_path = (char*)malloc(PATH_MAX);
     if (!g_save_path) {
-      printf("[NGC][SAVE] OOM on path alloc, autosave disabled\n");
+      EMU_LOG("[NGC][SAVE] OOM on path alloc, autosave disabled\n");
       return;
     }
   }
@@ -349,7 +350,7 @@ extern "C" void ngc_save_init(const char* romPathOrName) {
     );
   }
 
-  printf("[NGC][SAVE] path=%s\n", g_save_path);
+  EMU_LOG("[NGC][SAVE] path=%s\n", g_save_path);
 }
 
 extern "C" void ngc_save_tick(void) {

@@ -6,6 +6,7 @@
 #include "lynx_input.h"
 #include "lynx_sound.h"
 #include "share/utils.h"
+#include "share/emu_log_cpp.h"
 
 static CSystem*  s_lynx     = nullptr;
 static uint16_t* s_fb       = nullptr;
@@ -17,7 +18,7 @@ static SWORD*    s_audioBuf = nullptr;
 static bool lynx_init_core(const uint8_t* romData, size_t romLen, int sampleRate)
 {
     if (!romData || romLen == 0) {
-        printf("[LYNX] invalid ROM buffer\n");
+        EMU_LOG("[LYNX] invalid ROM buffer\n");
         return false;
     }
 
@@ -30,12 +31,12 @@ static bool lynx_init_core(const uint8_t* romData, size_t romLen, int sampleRate
     );
 
     if (!s_lynx) {
-        printf("[LYNX] CSystem allocation failed\n");
+        EMU_LOG("[LYNX] CSystem allocation failed\n");
         return false;
     }
 
     if (s_lynx->mFileType == HANDY_FILETYPE_ILLEGAL) {
-        printf("[LYNX] ROM loading failed (illegal file type)\n");
+        EMU_LOG("[LYNX] ROM loading failed (illegal file type)\n");
         delete s_lynx;
         s_lynx = nullptr;
         return false;
@@ -48,7 +49,7 @@ static bool lynx_init_core(const uint8_t* romData, size_t romLen, int sampleRate
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!s_fb) {
-        printf("[LYNX] framebuffer alloc failed\n");
+        EMU_LOG("[LYNX] framebuffer alloc failed\n");
         delete s_lynx;
         s_lynx = nullptr;
         return false;
@@ -65,7 +66,7 @@ static bool lynx_init_core(const uint8_t* romData, size_t romLen, int sampleRate
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!s_audioBuf) {
-        printf("[LYNX] audio buffer alloc failed\n");
+        EMU_LOG("[LYNX] audio buffer alloc failed\n");
         delete s_lynx;
         s_lynx = nullptr;
         free(s_fb);
@@ -80,7 +81,7 @@ static bool lynx_init_core(const uint8_t* romData, size_t romLen, int sampleRate
 
     s_lynx->mMikie->SetRotation(MIKIE_NO_ROTATE);
 
-    printf("[LYNX] core initialized OK\n");
+    EMU_LOG("[LYNX] core initialized OK\n");
     return true;
 }
 
@@ -104,7 +105,7 @@ void run_lynx(const uint8_t* romData, size_t romLen, const char* romName)
 
     // ── Core Handy ───────────────────────────────
     if (!lynx_init_core(romData, romLen, sampleRate)) {
-        printf("[LYNX] init failed, aborting\n");
+        EMU_LOG("[LYNX] init failed, aborting\n");
         return;
     }
 
@@ -115,7 +116,7 @@ void run_lynx(const uint8_t* romData, size_t romLen, const char* romName)
     gAudioEnabled = 1;
     bool drawFrame = true;
 
-    printf("[LYNX] starting loop @ %d FPS\n", targetFps);
+    EMU_LOG("[LYNX] starting loop @ %d FPS\n", targetFps);
 
     // ── Main loop ───────────
     while (true) {
@@ -159,7 +160,7 @@ void run_lynx(const uint8_t* romData, size_t romLen, const char* romName)
         uint32_t nowMs = millis();
         if (nowMs - lastLogMs >= 1000) {
             float fps = (frameCount * 1000.0f) / (nowMs - lastLogMs);
-            printf("[LYNX] FPS: %.2f | HEAP %u\n",
+            EMU_LOG("[LYNX] FPS: %.2f | HEAP %u\n",
                    fps, esp_get_free_heap_size());
             frameCount = 0;
             lastLogMs  = nowMs;

@@ -15,6 +15,7 @@
 #include "esp_timer.h"
 #include "share/game_save.h"
 #include "share/utils.h"
+#include "share/emu_log_cpp.h"
 
 static void a7800_request_quit_to_launcher(void)
 {
@@ -36,12 +37,12 @@ void run_a7800(const uint8_t* romData, size_t romLen, const char* romName)
     a7800_input_init();
 
     if (!a7800_host_init(&host)) {
-        printf("[A7800] host init failed\n");
+        EMU_LOG("[A7800] host init failed\n");
         return;
     }
 
     if (!a7800_host_load_game(&host, romData, romLen, romName)) {
-        printf("[A7800] retro_load_game failed\n");
+        EMU_LOG("[A7800] retro_load_game failed\n");
         a7800_host_shutdown(&host);
         return;
     }
@@ -59,7 +60,7 @@ void run_a7800(const uint8_t* romData, size_t romLen, const char* romName)
     );
     a7800_audio_init(sampleRate);
 
-    printf("[A7800] core loaded, fps=%.2f, rate=%u, base=%ux%u, pal=%d\n",
+    EMU_LOG("[A7800] core loaded, fps=%.2f, rate=%u, base=%ux%u, pal=%d\n",
            targetFps,
            sampleRate,
            avInfo ? avInfo->geometry.base_width : 0,
@@ -113,7 +114,7 @@ void run_a7800(const uint8_t* romData, size_t romLen, const char* romName)
             const int32_t avgVideoMs = videoCount ? (int32_t)(videoUs / 1000 / videoCount) : 0;
             const int32_t avgCpuMs = avgFrameMs - avgVideoMs;
 
-            printf("[A7800] EMU %.1f fps | RENDER %.1f fps | frame %ldms (cpu %ldms + vid %ldms) | HEAP %u\n",
+            EMU_LOG("[A7800] EMU %.1f fps | RENDER %.1f fps | frame %ldms (cpu %ldms + vid %ldms) | HEAP %u\n",
                    fps,
                    rfps,
                    (long)avgFrameMs,

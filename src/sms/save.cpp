@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include <unistd.h>
 #include "share/game_save.h"  
+#include "share/emu_log_cpp.h"
 
 static uint8_t* g_sram = NULL;
 static size_t   g_sram_len = 0;
@@ -28,7 +29,7 @@ static bool flush_now(void){
   if (!g_sram || !g_sram_len) return false;
 
   if (share::gameSaveIsTrivialSram(g_sram, g_sram_len)) {
-    printf("SMS save: skip trivial SRAM, no write.\n");
+    EMU_LOG("SMS save: skip trivial SRAM, no write.\n");
     return false; 
   }
 
@@ -49,7 +50,7 @@ static bool flush_now(void){
   // Write to temp file
   FILE* f = fopen(tmp_path, "wb");
   if (!f) {
-    printf("SMS save: fopen tmp fail %s\n", tmp_path);
+    EMU_LOG("SMS save: fopen tmp fail %s\n", tmp_path);
     return false;
   }
   setvbuf(f, NULL, _IONBF, 0);
@@ -60,7 +61,7 @@ static bool flush_now(void){
   fclose(f);
 
   if (w != g_sram_len) {
-    printf("SMS save: short write %u/%u to %s\n",
+    EMU_LOG("SMS save: short write %u/%u to %s\n",
            (unsigned)w, (unsigned)g_sram_len, tmp_path);
     return false;
   }
@@ -68,11 +69,11 @@ static bool flush_now(void){
   // Unlink + rename
   unlink(g_save_path);
   if (rename(tmp_path, g_save_path) != 0) {
-    printf("SMS save: rename failed %s -> %s\n", tmp_path, g_save_path);
+    EMU_LOG("SMS save: rename failed %s -> %s\n", tmp_path, g_save_path);
     return false;
   }
 
-  printf("SMS save: wrote %u/%u -> %s \n",
+  EMU_LOG("SMS save: wrote %u/%u -> %s \n",
          (unsigned)w, (unsigned)g_sram_len, g_save_path);
          
   share::setGameIsSaving(false);
@@ -97,7 +98,7 @@ static void SaveTask(void*){
         if (!share::gameSaveIsTrivialSram(g_sram, g_sram_len)) {
           do_flush = true;
         } else {
-          printf("SMS save: trivial after change, skip write.\n");
+          EMU_LOG("SMS save: trivial after change, skip write.\n");
         }
       }
     }
@@ -111,7 +112,7 @@ static void SaveTask(void*){
       } else {
         // failed, dont delay next attempt
         g_crc_last = 0xFFFFFFFFu;
-        printf("SMS save: flush failed, will retry on next tick.\n");
+        EMU_LOG("SMS save: flush failed, will retry on next tick.\n");
       }
     }
   }
@@ -132,7 +133,7 @@ void sms_save_init(const char* romName, uint8_t* sramPtr, size_t sramLen){
   if (!g_sram_shadow && g_sram_len) {
     g_sram_shadow = (uint8_t*)malloc(g_sram_len);
     if (!g_sram_shadow) {
-      printf("SMS save: no shadow buffer, will write live.\n");
+      EMU_LOG("SMS save: no shadow buffer, will write live.\n");
     }
   }
 
@@ -160,11 +161,11 @@ void sms_save_load(void){
     // Try to load .tmp
     f = fopen(tmp_path, "rb");
     if (!f) {
-      printf("SMS load: no save, %s nor %s\n", g_save_path, tmp_path);
+      EMU_LOG("SMS load: no save, %s nor %s\n", g_save_path, tmp_path);
       return;
     }
 
-    printf("SMS load: .sav missing, using tmp %s\n", tmp_path);
+    EMU_LOG("SMS load: .sav missing, using tmp %s\n", tmp_path);
     loaded_path = tmp_path;
   }
 
@@ -176,7 +177,7 @@ void sms_save_load(void){
 
   g_crc_last = share::gameSaveCrc32Update(0, g_sram, g_sram_len);
 
-  printf("SMS load: read %u/%u from %s\n",
+  EMU_LOG("SMS load: read %u/%u from %s\n",
          (unsigned)n, (unsigned)g_sram_len, loaded_path);
 }
 

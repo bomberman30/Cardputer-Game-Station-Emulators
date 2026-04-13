@@ -6,6 +6,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "share/emu_log_cpp.h"
 
 static constexpr int kChannel = 0;
 static constexpr int kChunkSamples = 512;
@@ -154,7 +155,7 @@ void a7800_audio_init(unsigned sampleRate)
     s_ringSize = kRingSamples;
     s_ring = (int16_t*)malloc((size_t)s_ringSize * sizeof(int16_t));
     if (!s_ring) {
-        printf("[A7800][AUDIO] ring alloc failed\n");
+        EMU_LOG("[A7800][AUDIO] ring alloc failed\n");
         return;
     }
 
@@ -175,7 +176,7 @@ void a7800_audio_init(unsigned sampleRate)
     );
 
     if (ok != pdPASS) {
-        printf("[A7800][AUDIO] task create failed\n");
+        EMU_LOG("[A7800][AUDIO] task create failed\n");
         s_audioTask = nullptr;
         s_running = false;
         free(s_ring);
@@ -185,7 +186,7 @@ void a7800_audio_init(unsigned sampleRate)
     }
 
     s_inited = true;
-    printf("[A7800][AUDIO] init ok, rate=%u, ring=%d\n", s_sampleRate, s_ringSize);
+    EMU_LOG("[A7800][AUDIO] init ok, rate=%u, ring=%d\n", s_sampleRate, s_ringSize);
 }
 
 void a7800_audio_shutdown(void)

@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "share/game_save.h"
+#include "share/emu_log_cpp.h"
 
 extern "C" {
 // Core WS 
@@ -78,7 +79,7 @@ static bool flush_now(){
     if (w != n) {
       // erreur write
       fclose(f);
-      printf("[WS][SAVE] write error saving %s\n", g_save_path);
+      EMU_LOG("[WS][SAVE] write error saving %s\n", g_save_path);
       return false;
     }
     src       += n;
@@ -89,7 +90,7 @@ static bool flush_now(){
   fsync(fileno(f));
   fclose(f);
 
-  printf("[WS][SAVE] wrote %u bytes -> %s\n",
+  EMU_LOG("[WS][SAVE] wrote %u bytes -> %s\n",
          (unsigned)g_sram_len, g_save_path);
 
   return true;
@@ -112,7 +113,7 @@ static void SaveTask(void*){
           share::setGameIsSaving(true);
           do_flush = true;
         } else {
-          printf("[WS][SAVE] trivial after change, skip\n");
+          EMU_LOG("[WS][SAVE] trivial after change, skip\n");
         }
       }
     }
@@ -124,7 +125,7 @@ static void SaveTask(void*){
       if (!ok) {
         // Fail, force dirty
         g_crc_last = 0xFFFFFFFFu;
-        printf("[WS][SAVE] save failed, will retry on next tick\n");
+        EMU_LOG("[WS][SAVE] save failed, will retry on next tick\n");
       }
     }
   }
@@ -145,7 +146,7 @@ void ws_save_init(const char* romPathOrName){
   #endif
 
   if (!ok_size || RAMBanks < 1 || !RAMMap || !RAMMap[0]) {
-    printf("[WS][SAVE] ignored (size=%d, banks=%d, kind=%s)\n",
+    EMU_LOG("[WS][SAVE] ignored (size=%d, banks=%d, kind=%s)\n",
            RAMSize, RAMBanks, is_eep ? "EEP" : "SRAM");
     g_sram      = nullptr;
     g_sram_len  = 0;
@@ -158,7 +159,7 @@ void ws_save_init(const char* romPathOrName){
   if (!g_save_path) {
     g_save_path = (char*)malloc(PATH_MAX);
     if (!g_save_path) {
-      printf("[WS][SAVE] ignored (OOM on path alloc)\n");
+      EMU_LOG("[WS][SAVE] ignored (OOM on path alloc)\n");
       g_sram      = nullptr;
       g_sram_len  = 0;
       g_crc_last  = 0;
@@ -189,7 +190,7 @@ void ws_save_init(const char* romPathOrName){
           size_t n = (remaining < CHUNK) ? remaining : CHUNK;
           size_t w = fwrite(buf, 1, n, f);
           if (w != n) {
-            printf("[WS][SAVE] prealloc write error\n");
+            EMU_LOG("[WS][SAVE] prealloc write error\n");
             break;
           }
           remaining -= n;
@@ -199,16 +200,16 @@ void ws_save_init(const char* romPathOrName){
         fsync(fileno(f));
         fclose(f);
 
-        printf("[WS][SAVE] preallocated save file %s (%u bytes)\n",
+        EMU_LOG("[WS][SAVE] preallocated save file %s (%u bytes)\n",
                g_save_path, (unsigned)g_sram_len);
       } else {
-        printf("[WS][SAVE] failed to create save file: %s\n", g_save_path);
+        EMU_LOG("[WS][SAVE] failed to create save file: %s\n", g_save_path);
       }
     } else {
       fclose(f);
     }
   } else {
-    printf("[WS][SAVE] storage path not ready, will try later\n");
+    EMU_LOG("[WS][SAVE] storage path not ready, will try later\n");
   }
 
   // CRC initial
@@ -232,7 +233,7 @@ void ws_save_init(const char* romPathOrName){
     );
   }
 
-  printf("[WS][SAVE] path=%s len=%u (%s)\n",
+  EMU_LOG("[WS][SAVE] path=%s len=%u (%s)\n",
          g_save_path,
          (unsigned)g_sram_len,
          is_eep ? "EEP" : "SRAM");
@@ -241,7 +242,7 @@ void ws_save_init(const char* romPathOrName){
 void ws_save_load(void){
   if (!g_sram || !g_sram_len) return;
   if (!share::gameSaveEnsureParentReady(WS_SAVE_DIR)) {
-    printf("[WS][SAVE] skip load (storage not ready)\n");
+    EMU_LOG("[WS][SAVE] skip load (storage not ready)\n");
     return;
   }
 
@@ -255,15 +256,15 @@ void ws_save_load(void){
 
     // Tenter le rename
     if (rename(tmp_path, g_save_path) == 0) {
-      printf("[WS][SAVE] promoted temp -> sav: %s\n", g_save_path);
+      EMU_LOG("[WS][SAVE] promoted temp -> sav: %s\n", g_save_path);
       f = fopen(g_save_path, "rb"); // rouvre le .sav
     } else {
       // lire .tmp
       f = fopen(tmp_path, "rb");
       if (f) {
-        printf("[WS][SAVE] loading from temp (rename failed)\n");
+        EMU_LOG("[WS][SAVE] loading from temp (rename failed)\n");
       } else {
-        printf("[WS][SAVE] no save and no temp: %s\n", g_save_path);
+        EMU_LOG("[WS][SAVE] no save and no temp: %s\n", g_save_path);
         return;
       }
     }
@@ -286,7 +287,7 @@ void ws_save_load(void){
   if (remaining) memset(dst, 0xFF, remaining);
 
   g_crc_last = share::gameSaveCrc32Update(0, g_sram, g_sram_len);
-  printf("[WS][SAVE] loaded %u/%u from %s\n",
+  EMU_LOG("[WS][SAVE] loaded %u/%u from %s\n",
          (unsigned)(g_sram_len - remaining), (unsigned)g_sram_len, g_save_path);
 }
 

@@ -13,6 +13,7 @@
 #include "ngc_scheduler.h"
 #include "ngc_save.h"
 // #include "ngc_bios.h"
+#include "share/emu_log_cpp.h"
 
 #define NGP_LANG_EN 1
 #define NGP_LANG    NGP_LANG_EN  // 0 = JP, 1 = EN
@@ -188,12 +189,12 @@ void run_ngp(const uint8_t* rom_base, size_t rom_size, const char* rom_name, int
   ngc_scheduler_start();
 
   // Go
-  printf("[NGPC_RUN] entering ngpc_run() ... m_bIsActive=%d\n", m_bIsActive);
-  printf("[FORCE] Enabling LCD + VBLANK IRQ @ 0x4000 = 0xC0\n");
+  EMU_LOG("[NGPC_RUN] entering ngpc_run() ... m_bIsActive=%d\n", m_bIsActive);
+  EMU_LOG("[FORCE] Enabling LCD + VBLANK IRQ @ 0x4000 = 0xC0\n");
   tlcsMemWriteB(0x00004000, 0xC0);   // bit 7 = LCD ON, bit 6 = VBlank IRQ enable
   m_bIsActive = 1;
 
-  printf("[NGPC_RUN] starting core loop\n");
+  EMU_LOG("[NGPC_RUN] starting core loop\n");
 
   #ifdef FRAMESKIP
       const int skipFrames = 1;
@@ -248,7 +249,7 @@ void run_ngp(const uint8_t* rom_base, size_t rom_size, const char* rom_name, int
           float avg_ms = frame_time_total / (float)frames / 1000.0f;
           float min_ms = frame_time_min / 1000.0f;
           float max_ms = frame_time_max / 1000.0f;
-          printf("[NGP_RUN] %lu frames / 2s (~%lu FPS) | HEAP: %u bytes (%.1f KB) | AVG %.2fms | MIN %.2fms | MAX %.2fms\n",
+          EMU_LOG("[NGP_RUN] %lu frames / 2s (~%lu FPS) | HEAP: %u bytes (%.1f KB) | AVG %.2fms | MIN %.2fms | MAX %.2fms\n",
           frames,
           frames / 2,
           (unsigned int)heap_free,

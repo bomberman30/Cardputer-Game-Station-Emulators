@@ -9,6 +9,7 @@ extern "C" {
 #include "esp_heap_caps.h"
 #include <algorithm>
 #include <esp_attr.h>
+#include "share/emu_log_cpp.h"
 
 // -----------------------------------------------------------------------------
 // Dimensions WonderSwan (src)
@@ -194,7 +195,7 @@ extern "C" void ws_display_start()
 
   if (ok != pdPASS) {
     s_wsDispTask = nullptr;
-    printf("[WS][ERR] display task create failed\n");
+    EMU_LOG("[WS][ERR] display task create failed\n");
   }
 }
 

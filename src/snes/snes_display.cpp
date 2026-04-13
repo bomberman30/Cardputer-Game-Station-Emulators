@@ -6,6 +6,7 @@
 
 #include "snes9x/snes9x.h"
 #include "share/game_save.h"
+#include "share/emu_log_cpp.h"
 
 // Crop
 static constexpr int CROP_X = (SNES_WIDTH - LCD_W) / 2; // 8
@@ -188,7 +189,7 @@ extern "C" void snes_display_init(void)
     );
 
     if (!s_buf) {
-        printf("[SNES-DISP] buffer alloc failed\n");
+        EMU_LOG("[SNES-DISP] buffer alloc failed\n");
         return;
     }
 

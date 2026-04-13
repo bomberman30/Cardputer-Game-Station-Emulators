@@ -14,6 +14,7 @@
 
 extern "C" {
     #include "snes9x/snes9x.h"
+#include "share/emu_log_cpp.h"
 }
 
 struct SnesLineMap
@@ -62,7 +63,7 @@ static void snes_apply_common_settings()
 
 static void snes_log_runtime_config(int targetFps)
 {
-    printf("[SNES] Core/Video only, no audio, %s, no tilecache, %d FPS target\n",
+    EMU_LOG("[SNES] Core/Video only, no audio, %s, no tilecache, %d FPS target\n",
            snes_save_has_sram() ? "with SRAM" : "no SRAM",
            targetFps);
 }
@@ -93,7 +94,7 @@ static inline void snes_log_fps_and_heap(uint32_t &frameCount, uint32_t &lastFps
 
     snes_update_interlace_from_fps(fps);
 
-    printf("[SNES] FPS: %.2f | HEAP: %u | INTERLACE: %s\n",
+    EMU_LOG("[SNES] FPS: %.2f | HEAP: %u | INTERLACE: %s\n",
            fps,
            esp_get_free_heap_size(),
            interlace_enabled ? "ON" : "OFF");
@@ -257,47 +258,47 @@ bool snes_init()
 {
     if (!S9xInitDisplay())
     {
-        printf("[SNES] S9xInitDisplay failed\n");
+        EMU_LOG("[SNES] S9xInitDisplay failed\n");
         return false;
     }
 
     if (!S9xInitMemory())
     {
-        printf("[SNES] S9xInitMemory failed\n");
+        EMU_LOG("[SNES] S9xInitMemory failed\n");
         return false;
     }
 
     if (!snes_save_alloc_sram())
-        printf("[SNES] SRAM allocation failed\n");
+        EMU_LOG("[SNES] SRAM allocation failed\n");
 
     if (!S9xInitGFX())
     {
-        printf("[SNES] S9xInitGFX failed\n");
+        EMU_LOG("[SNES] S9xInitGFX failed\n");
         return false;
     }
 
     if (!S9xInitMap())
     {
-        printf("[SNES] S9xInitMap failed\n");
+        EMU_LOG("[SNES] S9xInitMap failed\n");
         return false;
     }
 
     if (!S9xInitPpu())
     {
-        printf("[SNES] S9xInitPpu failed\n");
+        EMU_LOG("[SNES] S9xInitPpu failed\n");
         return false;
     }
 
     if (!S9xInitLineBuffers())
     {
-        printf("[SNES] S9xInitLineBuffers failed\n");
+        EMU_LOG("[SNES] S9xInitLineBuffers failed\n");
         return false;
     }
 
     /* NULL means use already mapped ROM */
     if (!LoadROM(NULL))
     {
-        printf("[SNES] LoadROM failed\n");
+        EMU_LOG("[SNES] LoadROM failed\n");
         return false;
     }
 
@@ -346,7 +347,7 @@ static bool snes_alt_buffers_alloc()
 
 void run_snes_default(const uint8_t* rom, size_t romSize, const char* romName)
 {
-    printf("[SNES] ROM: %p (size %zu bytes)\n", rom, romSize);
+    EMU_LOG("[SNES] ROM: %p (size %zu bytes)\n", rom, romSize);
 
     Memory.ROM           = (uint8_t*)rom;
     Memory.ROM_Offset    = 0;
@@ -356,7 +357,7 @@ void run_snes_default(const uint8_t* rom, size_t romSize, const char* romName)
 
     if (!snes_init())
     {
-        printf("[SNES] snes_init failed, aborting\n");
+        EMU_LOG("[SNES] snes_init failed, aborting\n");
         return;
     }
 
@@ -449,7 +450,7 @@ void run_snes_default(const uint8_t* rom, size_t romSize, const char* romName)
 
 void run_snes_alt(const uint8_t* rom, size_t romSize, const char* romName)
 {
-    printf("[SNES] ROM: %p (size %zu bytes)\n", rom, romSize);
+    EMU_LOG("[SNES] ROM: %p (size %zu bytes)\n", rom, romSize);
 
     Memory.ROM           = (uint8_t*)rom;
     Memory.ROM_Offset    = 0;
@@ -460,7 +461,7 @@ void run_snes_alt(const uint8_t* rom, size_t romSize, const char* romName)
 
     if (!snes_init())
     {
-        printf("[SNES] snes_init failed, aborting\n");
+        EMU_LOG("[SNES] snes_init failed, aborting\n");
         return;
     }
 
@@ -537,7 +538,7 @@ void run_snes(const uint8_t* rom, size_t romSize, const char* romName)
 
     char title[32];
     if (snes_read_title(title, sizeof(title), rom, romSize))
-        printf("[SNES] Internal title: %s, ALT: %s\n", title, alt ? "YES" : "NO");
+        EMU_LOG("[SNES] Internal title: %s, ALT: %s\n", title, alt ? "YES" : "NO");
 
     // Some game can't render line by line properly, for those we use an alternate rendering method 
     if (alt)

@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "share/game_save.h"
+#include "share/emu_log_cpp.h"
 
 // ==== API ====
 extern "C" {
@@ -75,7 +76,7 @@ static void make_save_path(const char* romPathOrName) {
 static bool save_now() {
   if (!g_save_path) return false;
   if (!share::gameSaveEnsureParentReady(GBC_SAVE_DIR)) {
-    printf("[GBC][SAVE] storage path not ready, skip save\n");
+    EMU_LOG("[GBC][SAVE] storage path not ready, skip save\n");
     return false;
   }
 
@@ -92,7 +93,7 @@ static bool save_now() {
       break;
     }
 
-    printf("[GBC][SAVE] gnuboy_save_sram failed (rc=%d) for %s (attempt %d/%d)\n",
+    EMU_LOG("[GBC][SAVE] gnuboy_save_sram failed (rc=%d) for %s (attempt %d/%d)\n",
            rc, g_save_path, attempt, max_attempts);
 
     if (attempt < max_attempts) {
@@ -105,7 +106,7 @@ static bool save_now() {
   g_last_save   = xTaskGetTickCount();
   g_first_dirty = 0;
 
-  printf("[GBC][SAVE] SRAM saved to %s\n", g_save_path);
+  EMU_LOG("[GBC][SAVE] SRAM saved to %s\n", g_save_path);
   return true;
 }
 
@@ -136,7 +137,7 @@ static void SaveTask(void* /*arg*/) {
         // Wait 15s ONLY if the save succeeded
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(GAP_MS);
       } else {
-        printf("[GBC][SAVE] save failed, will retry on next tick\n");
+        EMU_LOG("[GBC][SAVE] save failed, will retry on next tick\n");
       }
     }
   }
@@ -149,7 +150,7 @@ extern "C" void gbc_save_init(const char* romPathOrName) {
   if (!g_save_path) {
     g_save_path = (char*)malloc(PATH_MAX);
     if (!g_save_path) {
-      printf("[GBC][SAVE] OOM on path alloc, autosave disabled\n");
+      EMU_LOG("[GBC][SAVE] OOM on path alloc, autosave disabled\n");
       return;
     }
   }
@@ -176,38 +177,38 @@ extern "C" void gbc_save_init(const char* romPathOrName) {
     );
   }
 
-  printf("[GBC][SAVE] path=%s\n", g_save_path);
+  EMU_LOG("[GBC][SAVE] path=%s\n", g_save_path);
 }
 
 extern "C" void gbc_save_load(void) {
   if (!g_save_path) return;
   if (!share::gameSaveEnsureParentReady(GBC_SAVE_DIR)) {
-    printf("[GBC][SAVE] skip load (storage not ready)\n");
+    EMU_LOG("[GBC][SAVE] skip load (storage not ready)\n");
     return;
   }
 
   struct stat st;
   if (stat(g_save_path, &st) != 0) {
-    printf("[GBC][SAVE] no existing save file for %s\n", g_save_path);
+    EMU_LOG("[GBC][SAVE] no existing save file for %s\n", g_save_path);
     return;
   }
 
-  printf("[GBC][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
+  EMU_LOG("[GBC][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
 
   int rc = gnuboy_load_sram(g_save_path);
   if (rc != 0) {
-    printf("[GBC][SAVE] load failed rc=%d for %s\n", rc, g_save_path);
+    EMU_LOG("[GBC][SAVE] load failed rc=%d for %s\n", rc, g_save_path);
   } else {
-    printf("[GBC][SAVE] SRAM loaded from %s\n", g_save_path);
+    EMU_LOG("[GBC][SAVE] SRAM loaded from %s\n", g_save_path);
 
     FILE* f = fopen(g_save_path, "rb");
     if (f) {
       uint8_t buf[16];
       size_t got = fread(buf, 1, sizeof(buf), f);
       fclose(f);
-      printf("[GBC][SAVE] first bytes: ");
-      for (size_t i = 0; i < got; ++i) printf("%02X ", buf[i]);
-      printf("\n");
+      EMU_LOG("[GBC][SAVE] first bytes: ");
+      for (size_t i = 0; i < got; ++i) EMU_LOG("%02X ", buf[i]);
+      EMU_LOG("\n");
     }
   }
 }

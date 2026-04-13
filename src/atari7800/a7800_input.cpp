@@ -8,6 +8,7 @@
 #include "../share/input.h"
 #include "a7800_config.h"
 #include "a7800_video.h"
+#include "share/emu_log_cpp.h"
 
 static constexpr uint32_t kBacktickLongPressMs = 700;
 static uint32_t s_backtickPressedMs = 0;
@@ -147,7 +148,7 @@ void a7800_input_poll(A7800InputState* state)
         M5Cardputer.Keyboard.isKeyPressed(CARDPUTER_SCREEN_TOGGLE)) {
         if (ks.fn) {
             a7800_config_toggle_internal_view_mode();
-            printf("[A7800][DISP] internal view=%s\n",
+            EMU_LOG("[A7800][DISP] internal view=%s\n",
                    a7800_config_get_internal_view_mode_label());
         } else {
             a7800_video_toggle_fullscreen();

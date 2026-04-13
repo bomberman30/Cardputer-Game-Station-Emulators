@@ -5,6 +5,7 @@
 
 extern "C" {
   #include "gnuboy/gnuboy.h"
+#include "share/emu_log_cpp.h"
 }
 
 extern bool gbcFullScreen;
@@ -63,7 +64,7 @@ extern "C" int gbc_input_poll(void)
             }
 
             gnuboy_set_palette((gb_palette_t)gbPalette);
-            printf("[GBC] Palette -> %d\n", gbPalette);
+            EMU_LOG("[GBC] Palette -> %d\n", gbPalette);
         }
 
         return dummy_ret;

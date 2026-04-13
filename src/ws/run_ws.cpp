@@ -9,11 +9,12 @@ extern "C" {
 #include "ws_display.h"
 #include "ws_sound.h"
 #include "ws_save.h"
+#include "share/emu_log_cpp.h"
 
 extern "C" void run_ws(const uint8_t* rom, size_t len, const char* rom_name, bool is_color)
 {
-  printf("[WS] ===== WonderSwan Start =====\n");
-  printf("[WS] ROM size: %u bytes, color mode: %s\n",
+  EMU_LOG("[WS] ===== WonderSwan Start =====\n");
+  EMU_LOG("[WS] ROM size: %u bytes, color mode: %s\n",
          (unsigned)len, is_color ? "COLOR" : "MONO");
 
   // LCD
@@ -27,14 +28,14 @@ extern "C" void run_ws(const uint8_t* rom, size_t len, const char* rom_name, boo
   ws_sound_init(48000);
   ws_sound_start_task(16, 0);
   WsInit(); // splash screen
-  printf("[WS] Init done\n");
+  EMU_LOG("[WS] Init done\n");
   
   // Load ROM
   if (WsCreateFromMemory(rom, len) != 0) {
-    printf("[WS][ERR] Cart load failed! len=%u\n, SRAM could be too big", (unsigned)len);
+    EMU_LOG("[WS][ERR] Cart load failed! len=%u\n, SRAM could be too big", (unsigned)len);
     for(;;) delay(1000);
   }
-  printf("[WS] Cart loaded successfully\n");
+  EMU_LOG("[WS] Cart loaded successfully\n");
 
   // SRAM save/load
   ws_save_init(rom_name);
@@ -43,7 +44,7 @@ extern "C" void run_ws(const uint8_t* rom, size_t len, const char* rom_name, boo
   // Timing
   const uint32_t frame_us = 1000000u / 75u; // 13.3 ms
   uint64_t next = esp_timer_get_time();
-  printf("[WS] Frame pacing: %uus/frame\n", frame_us);
+  EMU_LOG("[WS] Frame pacing: %uus/frame\n", frame_us);
   uint32_t frameCount = 0;
   uint32_t lastLog = millis();
 
@@ -56,11 +57,11 @@ extern "C" void run_ws(const uint8_t* rom, size_t len, const char* rom_name, boo
     // Log framerate every 2 seconds
     // uint32_t now = millis();
     // if (now - lastLog >= 2000) {
-    //   printf("[WS] %lu frames rendered (%.2f FPS)\n",
+    //   EMU_LOG("[WS] %lu frames rendered (%.2f FPS)\n",
     //          (unsigned long)frameCount,
     //          (float)frameCount / ((now - lastLog) / 1000.0f));
     //   frameCount = 0;
-    //   printf("[WS] HEAP: %u bytes\n", esp_get_free_heap_size());
+    //   EMU_LOG("[WS] HEAP: %u bytes\n", esp_get_free_heap_size());
     //   lastLog = now;
     // }
 

@@ -9,6 +9,7 @@
 extern "C" {
   #include "sms/smsplus/shared.h"
   #include "sms/smsplus/vdp.h"
+#include "share/emu_log_cpp.h"
 }
 
 bool fullscreen = true;
@@ -82,12 +83,12 @@ void sms_display_init() {
   sms_palette_565 = (uint16_t*)malloc(256   * sizeof(uint16_t));
 
   if (!lineBuf || !xmap || !ymap || !sms_palette_565) {
-    printf("Erreur d'allocation display buffers !\n");
+    EMU_LOG("Erreur d'allocation display buffers !\n");
     while (true) delay(100);
   }
 
   M5.Display.fillScreen(TFT_BLACK);
-  printf("Display init: %dx%d OK\n", LCD_W, LCD_H);
+  EMU_LOG("Display init: %dx%d OK\n", LCD_W, LCD_H);
 }
 
 void sms_palette_init_fixed(){

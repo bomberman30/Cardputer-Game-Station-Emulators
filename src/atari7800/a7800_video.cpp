@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "share/emu_log_cpp.h"
 
 static constexpr int kA7800PalWideVisibleHeight = 240;
 
@@ -236,7 +237,7 @@ static void a7800_display_task(void* arg)
         a7800_compute_plan((int)msg.width, (int)msg.height, msg.isPal, plan);
 
         if (!a7800_prepare_luts(plan)) {
-            printf("[A7800][DISP] buffer allocation failed\n");
+            EMU_LOG("[A7800][DISP] buffer allocation failed\n");
             continue;
         }
 
@@ -294,7 +295,7 @@ void a7800_video_init(double fps, unsigned baseWidth, unsigned baseHeight, float
     if (!s_frameQ) {
         s_frameQ = xQueueCreate(2, sizeof(A7800FrameMsg));
         if (!s_frameQ) {
-            printf("[A7800][DISP] queue create failed\n");
+            EMU_LOG("[A7800][DISP] queue create failed\n");
         }
     }
 
@@ -309,12 +310,12 @@ void a7800_video_init(double fps, unsigned baseWidth, unsigned baseHeight, float
             0
         );
         if (ok != pdPASS) {
-            printf("[A7800][DISP] task create failed\n");
+            EMU_LOG("[A7800][DISP] task create failed\n");
             s_displayTask = nullptr;
         }
     }
 
-    printf("[A7800][DISP] fps=%.2f base=%ux%u aspect=%.3f\n",
+    EMU_LOG("[A7800][DISP] fps=%.2f base=%ux%u aspect=%.3f\n",
            s_targetFps,
            s_baseWidth,
            s_baseHeight,

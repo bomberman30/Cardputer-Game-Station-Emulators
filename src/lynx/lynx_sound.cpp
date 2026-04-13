@@ -6,6 +6,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "share/emu_log_cpp.h"
 
 static constexpr int kChannel = 0;
 
@@ -165,14 +166,14 @@ extern "C" void lynx_sound_init(int sample_rate)
             0      // core
         );
         if (ok != pdPASS) {
-            printf("[LYNX][AUDIO] task create failed\n");
+            EMU_LOG("[LYNX][AUDIO] task create failed\n");
             s_audioTask = nullptr;
             s_running   = false;
         }
     }
 
     s_inited = (s_ring != nullptr);
-    printf("[LYNX][AUDIO] init: rate=%d mono, ring=%d\n",
+    EMU_LOG("[LYNX][AUDIO] init: rate=%d mono, ring=%d\n",
            lynx_sampleRate, s_ringSize);
 }
 

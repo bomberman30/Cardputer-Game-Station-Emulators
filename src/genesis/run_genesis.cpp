@@ -22,6 +22,7 @@ extern "C" {
   #include "genesis/gwenesis/cpus/M68K/m68k.h"
   #include "genesis/gwenesis/sound/z80inst.h"
   #include "genesis/gwenesis/bus/gwenesis_bus.h"
+#include "share/emu_log_cpp.h"
 
   extern unsigned char  *M68K_RAM;
   extern uint8_t  *ZRAM;
@@ -50,7 +51,7 @@ extern "C" {
 static inline void ensure_alloc(void** p, size_t bytes, const char* name) {
   if (!*p) {
     *p = heap_caps_calloc(1, bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!*p) { printf("[FATAL] alloc %s (%u bytes) failed\n", name, (unsigned)bytes); abort(); }
+    if (!*p) { EMU_LOG("[FATAL] alloc %s (%u bytes) failed\n", name, (unsigned)bytes); abort(); }
   }
 }
 
@@ -182,7 +183,7 @@ static void run_one_frame() {
     last_fps_log_time = now;
     frame_count = 0;
     // Log FPS + heap RAM 
-    printf("[FPS] ~%.1f fps | heap: %u\n", fps, heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    EMU_LOG("[FPS] ~%.1f fps | heap: %u\n", fps, heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   }
 }
 
@@ -202,16 +203,16 @@ extern "C" void run_genesis(const uint8_t* rom, size_t len, const char* rom_name
 
   // Save
   gwenesis_init_sram((uint8_t*)rom, (uint32_t)len);
-  printf("[SRAM] enabled=%d start=%08X end=%08X\n", SRAM_ENABLED, SRAM_START, SRAM_END);
+  EMU_LOG("[SRAM] enabled=%d start=%08X end=%08X\n", SRAM_ENABLED, SRAM_START, SRAM_END);
   genesis_save_init(rom_name);
   genesis_save_load();
 
   // header ASCII "SEGA"0x100
-  printf("[ROM] ptr=%p size=%u\n", rom, (unsigned)len);
+  EMU_LOG("[ROM] ptr=%p size=%u\n", rom, (unsigned)len);
   if (len >= 0x120) {
-    printf("[ROM] hdr[0x100..0x10F]= ");
-    for (int i=0; i<16; ++i) printf("%02X ", rom[0x100+i]);
-    printf("\n");
+    EMU_LOG("[ROM] hdr[0x100..0x10F]= ");
+    for (int i=0; i<16; ++i) EMU_LOG("%02X ", rom[0x100+i]);
+    EMU_LOG("\n");
   }
 
   // Init Gwenesis

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include "esp_heap_caps.h"
+#include "share/emu_log_cpp.h"
 
 // Public
 bool lynxFullScreen   = true;
@@ -224,7 +225,7 @@ extern "C" void lynx_display_init(void)
   if (!s_frameQ) {
     s_frameQ = xQueueCreate(2, sizeof(LynxFrameMsg));
     if (!s_frameQ) {
-      printf("[LYNX-DISP] queue create failed\n");
+      EMU_LOG("[LYNX-DISP] queue create failed\n");
     }
   }
 }
@@ -246,7 +247,7 @@ extern "C" void lynx_display_start(void)
       0  // core 0
     );
     if (ok != pdPASS) {
-      printf("[LYNX-DISP] task create failed\n");
+      EMU_LOG("[LYNX-DISP] task create failed\n");
       if (s_task) {
         vTaskDelete(s_task);
       }

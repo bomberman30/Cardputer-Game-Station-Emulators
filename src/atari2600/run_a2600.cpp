@@ -23,6 +23,7 @@
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "share/utils.h"
+#include "share/emu_log_cpp.h"
 
 static constexpr int kA2600SampleRate = 31400;
 bool RenderFlag = true;
@@ -66,7 +67,7 @@ static void a2600_shutdown_core()
 static bool a2600_init_core(const uint8_t* romData, size_t romLen, const char* romName)
 {
     if (!romData || romLen == 0) {
-        printf("[A2600] invalid ROM buffer\n");
+        EMU_LOG("[A2600] invalid ROM buffer\n");
         return false;
     }
 
@@ -74,13 +75,13 @@ static bool a2600_init_core(const uint8_t* romData, size_t romLen, const char* r
 
     s_osystem = new OSystem();
     if (!s_osystem) {
-        printf("[A2600] OSystem allocation failed\n");
+        EMU_LOG("[A2600] OSystem allocation failed\n");
         return false;
     }
 
     s_settings = new Settings(s_osystem);
     if (!s_settings) {
-        printf("[A2600] Settings allocation failed\n");
+        EMU_LOG("[A2600] Settings allocation failed\n");
         a2600_shutdown_core();
         return false;
     }
@@ -110,14 +111,14 @@ static bool a2600_init_core(const uint8_t* romData, size_t romLen, const char* r
         *s_settings
     );
     if (!s_cartridge) {
-        printf("[A2600] Cartridge creation failed\n");
+        EMU_LOG("[A2600] Cartridge creation failed\n");
         a2600_shutdown_core();
         return false;
     }
 
     s_console = new Console(s_osystem, s_cartridge, props);
     if (!s_console) {
-        printf("[A2600] Console allocation failed\n");
+        EMU_LOG("[A2600] Console allocation failed\n");
         a2600_shutdown_core();
         return false;
     }
@@ -153,13 +154,13 @@ static bool a2600_init_core(const uint8_t* romData, size_t romLen, const char* r
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!s_audioBuffer) {
-        printf("[A2600] audio buffer alloc failed\n");
+        EMU_LOG("[A2600] audio buffer alloc failed\n");
         a2600_shutdown_core();
         return false;
     }
     memset(s_audioBuffer, 0, (size_t)s_tiaSamplesPerFrame * 2 * sizeof(int16_t));
 
-    printf("[A2600] core initialized, video=%dx%d, fps=%.2f, pal=%d, audio=%u\n",
+    EMU_LOG("[A2600] core initialized, video=%dx%d, fps=%.2f, pal=%d, audio=%u\n",
            videoWidth,
            videoHeight,
            framerate,
@@ -198,7 +199,7 @@ void run_a2600(const uint8_t* romData, size_t romLen, const char* romName)
     a2600_input_init();
 
     if (!a2600_init_core(romData, romLen, romName)) {
-        printf("[A2600] init failed\n");
+        EMU_LOG("[A2600] init failed\n");
         return;
     }
 
@@ -210,7 +211,7 @@ void run_a2600(const uint8_t* romData, size_t romLen, const char* romName)
     uint32_t frameCount = 0;
     uint32_t lastLogMs = millis();
 
-    printf("[A2600] starting loop @ %.2f FPS\n", targetFps);
+    EMU_LOG("[A2600] starting loop @ %.2f FPS\n", targetFps);
 
     while (true) {
         a2600_input_update(s_osystem->eventHandler().event());
@@ -230,7 +231,7 @@ void run_a2600(const uint8_t* romData, size_t romLen, const char* romName)
         const uint32_t nowMs = millis();
         if (nowMs - lastLogMs >= 1000) {
             const float fps = (frameCount * 1000.0f) / (float)(nowMs - lastLogMs);
-            printf("[A2600] FPS: %.2f | HEAP %u\n", fps, esp_get_free_heap_size());
+            EMU_LOG("[A2600] FPS: %.2f | HEAP %u\n", fps, esp_get_free_heap_size());
             frameCount = 0;
             lastLogMs = nowMs;
         }

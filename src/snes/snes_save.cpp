@@ -13,6 +13,7 @@
 
 extern "C" {
   #include "snes9x/snes9x.h"
+#include "share/emu_log_cpp.h"
 }
 
 /* ============================ Config ============================ */
@@ -85,14 +86,14 @@ static uint32_t hash_sram(const uint8_t* data, size_t size) {
 
 extern "C" bool snes_save_alloc_sram(void) {
   if (Memory.SRAM != NULL) {
-    printf("[SNES][SRAM] already allocated (%u bytes max)\n",
+    EMU_LOG("[SNES][SRAM] already allocated (%u bytes max)\n",
            (unsigned)SNES_SRAM_MAX_BYTES);
     return true;
   }
 
   Memory.SRAM = (uint8_t*)calloc(1, SNES_SRAM_MAX_BYTES);
   if (Memory.SRAM == NULL) {
-    printf("[SNES][SRAM] Alloc failed for %u bytes\n",
+    EMU_LOG("[SNES][SRAM] Alloc failed for %u bytes\n",
            (unsigned)SNES_SRAM_MAX_BYTES);
     Memory.SRAMSize = 0;
     Memory.SRAMMask = 0;
@@ -106,7 +107,7 @@ extern "C" bool snes_save_alloc_sram(void) {
   g_last_hash = 0;
   g_hash_valid = false;
 
-  printf("[SNES][SRAM] Allocated max buffer: %u bytes\n",
+  EMU_LOG("[SNES][SRAM] Allocated max buffer: %u bytes\n",
          (unsigned)SNES_SRAM_MAX_BYTES);
   return true;
 }
@@ -119,7 +120,7 @@ extern "C" void snes_save_prepare_sram(void) {
   }
 
   if (Memory.SRAM == NULL) {
-    printf("[SNES][SRAM] prepare failed: buffer not allocated\n");
+    EMU_LOG("[SNES][SRAM] prepare failed: buffer not allocated\n");
     Memory.SRAMSize = 0;
     Memory.SRAMMask = 0;
     g_last_hash = 0;
@@ -128,7 +129,7 @@ extern "C" void snes_save_prepare_sram(void) {
   }
 
   if (sram_bytes == 0 || sram_bytes > SNES_SRAM_MAX_BYTES) {
-    printf("[SNES][SRAM] disabled: requested %u bytes\n", (unsigned)sram_bytes);
+    EMU_LOG("[SNES][SRAM] disabled: requested %u bytes\n", (unsigned)sram_bytes);
     Memory.SRAMSize = 0;
     Memory.SRAMMask = 0;
     g_last_hash = 0;
@@ -142,7 +143,7 @@ extern "C" void snes_save_prepare_sram(void) {
   g_last_hash = hash_sram(Memory.SRAM, sram_bytes);
   g_hash_valid = true;
 
-  printf("[SNES][SRAM] prepared: %u bytes, mask=0x%X\n",
+  EMU_LOG("[SNES][SRAM] prepared: %u bytes, mask=0x%X\n",
          (unsigned)sram_bytes,
          (unsigned)Memory.SRAMMask);
 }
@@ -155,7 +156,7 @@ static bool save_now(void) {
 
   size_t sram_size = get_sram_size();
   if (sram_size == 0) {
-    printf("[SNES][SAVE] SRAM disabled or size=0, skip save\n");
+    EMU_LOG("[SNES][SAVE] SRAM disabled or size=0, skip save\n");
     return false;
   }
 
@@ -166,7 +167,7 @@ static bool save_now(void) {
   }
 
   if (!share::gameSaveEnsureParentReady(SNES_SAVE_DIR)) {
-    printf("[SNES][SAVE] storage path not ready, skip save\n");
+    EMU_LOG("[SNES][SAVE] storage path not ready, skip save\n");
     share::setGameIsSaving(false);
     return false;
   }
@@ -174,7 +175,7 @@ static bool save_now(void) {
   FILE* f = fopen(g_save_path, "wb");
   if (!f) {
     share::setGameIsSaving(false);
-    printf("[SNES][SAVE] open failed for %s\n", g_save_path);
+    EMU_LOG("[SNES][SAVE] open failed for %s\n", g_save_path);
     return false;
   }
 
@@ -184,7 +185,7 @@ static bool save_now(void) {
   share::setGameIsSaving(false);
   
   if (n != sram_size) {
-    printf("[SNES][SAVE] fwrite failed: wrote %u / %u bytes\n",
+    EMU_LOG("[SNES][SAVE] fwrite failed: wrote %u / %u bytes\n",
            (unsigned)n, (unsigned)sram_size);
     return false;
   }
@@ -194,7 +195,7 @@ static bool save_now(void) {
   g_last_hash   = hash_sram(Memory.SRAM, sram_size);
   g_hash_valid  = true;
 
-  printf("[SNES][SAVE] SRAM saved to %s (%u bytes)\n",
+  EMU_LOG("[SNES][SAVE] SRAM saved to %s (%u bytes)\n",
          g_save_path, (unsigned)sram_size);
   return true;
 }
@@ -215,7 +216,7 @@ static void process_save_logic(bool force_flush) {
       if (ok) {
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
       } else {
-        printf("[SNES][SAVE] save failed, will retry later\n");
+        EMU_LOG("[SNES][SAVE] save failed, will retry later\n");
       }
     }
     return;
@@ -235,7 +236,7 @@ static void process_save_logic(bool force_flush) {
       if (ok) {
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
       } else {
-        printf("[SNES][SAVE] save failed, will retry later\n");
+        EMU_LOG("[SNES][SAVE] save failed, will retry later\n");
       }
     }
   }
@@ -273,7 +274,7 @@ static void SaveTask(void* /*arg*/) {
       if (ok) {
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
       } else {
-        printf("[SNES][SAVE] save failed, will retry on next tick\n");
+        EMU_LOG("[SNES][SAVE] save failed, will retry on next tick\n");
       }
     }
   }
@@ -285,14 +286,14 @@ static void SaveTask(void* /*arg*/) {
 
 extern "C" void snes_save_init(const char* romPathOrName) {
   if (!Memory.SRAM || Memory.SRAMMask == 0) {
-    printf("[SNES][SAVE] not started (no SRAM)\n");
+    EMU_LOG("[SNES][SAVE] not started (no SRAM)\n");
     return;
   }
 
   if (!g_save_path) {
     g_save_path = (char*)malloc(PATH_MAX);
     if (!g_save_path) {
-      printf("[SNES][SAVE] OOM on path alloc, autosave disabled\n");
+      EMU_LOG("[SNES][SAVE] OOM on path alloc, autosave disabled\n");
       return;
     }
   }
@@ -332,27 +333,27 @@ extern "C" void snes_save_init(const char* romPathOrName) {
 #endif
 
 #ifdef SNES_NO_THREADED_SAVE
-  printf("[SNES][SAVE] path=%s (non-threaded)\n", g_save_path);
+  EMU_LOG("[SNES][SAVE] path=%s (non-threaded)\n", g_save_path);
 #else
-  printf("[SNES][SAVE] path=%s (threaded)\n", g_save_path);
+  EMU_LOG("[SNES][SAVE] path=%s (threaded)\n", g_save_path);
 #endif
 }
 
 extern "C" void snes_save_load(void) {
   if (!g_save_path) return;
   if (!Memory.SRAM) {
-    printf("[SNES][SAVE] skip load (SRAM disabled)\n");
+    EMU_LOG("[SNES][SAVE] skip load (SRAM disabled)\n");
     return;
   }
 
   if (!share::gameSaveEnsureParentReady(SNES_SAVE_DIR)) {
-    printf("[SNES][SAVE] skip load (storage not ready)\n");
+    EMU_LOG("[SNES][SAVE] skip load (storage not ready)\n");
     return;
   }
 
   struct stat st;
   if (stat(g_save_path, &st) != 0) {
-    printf("[SNES][SAVE] no existing save file for %s\n", g_save_path);
+    EMU_LOG("[SNES][SAVE] no existing save file for %s\n", g_save_path);
 
     size_t sram_size = get_sram_size();
     if (sram_size > 0) {
@@ -367,21 +368,21 @@ extern "C" void snes_save_load(void) {
 
   size_t sram_size = get_sram_size();
   if (sram_size == 0) {
-    printf("[SNES][SAVE] skip load (SRAM size=0)\n");
+    EMU_LOG("[SNES][SAVE] skip load (SRAM size=0)\n");
     return;
   }
 
   FILE* f = fopen(g_save_path, "rb");
   if (!f) {
-    printf("[SNES][SAVE] load open failed for %s\n", g_save_path);
+    EMU_LOG("[SNES][SAVE] load open failed for %s\n", g_save_path);
     return;
   }
 
   size_t n = fread(Memory.SRAM, 1, sram_size, f);
   fclose(f);
 
-  printf("[SNES][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
-  printf("[SNES][SAVE] SRAM loaded from %s (%u bytes)\n",
+  EMU_LOG("[SNES][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
+  EMU_LOG("[SNES][SAVE] SRAM loaded from %s (%u bytes)\n",
          g_save_path, (unsigned)n);
 
   g_last_hash  = hash_sram(Memory.SRAM, sram_size);
@@ -392,9 +393,9 @@ extern "C" void snes_save_load(void) {
     uint8_t buf[16];
     size_t got = fread(buf, 1, sizeof(buf), dbg);
     fclose(dbg);
-    printf("[SNES][SAVE] first bytes: ");
-    for (size_t i = 0; i < got; ++i) printf("%02X ", buf[i]);
-    printf("\n");
+    EMU_LOG("[SNES][SAVE] first bytes: ");
+    for (size_t i = 0; i < got; ++i) EMU_LOG("%02X ", buf[i]);
+    EMU_LOG("\n");
   }
 }
 

@@ -8,6 +8,7 @@
 extern "C" {
   #include "pce-go/pce.h"
   #include "pce-go/psg.h"
+#include "share/emu_log_cpp.h"
   void* PalettePCE(int brightness);
 }
 
@@ -216,7 +217,7 @@ static void pce_display_task(void *arg) {
       }
       s_bottomCache = (uint8_t*)heap_caps_malloc(neededCacheBytes, MALLOC_CAP_8BIT);
       if (!s_bottomCache) {
-        printf("[PCE] bottomCache alloc failed (%d bytes)\n", neededCacheBytes);
+        EMU_LOG("[PCE] bottomCache alloc failed (%d bytes)\n", neededCacheBytes);
       } else {
         s_bottomCacheLines  = cacheLines;
         s_bottomCacheW      = srcW;
@@ -287,7 +288,7 @@ static void pce_display_task(void *arg) {
 extern "C" void pce_display_init(void) {
   uint16_t* corePal = (uint16_t*)PalettePCE(16);
   if (!corePal) {
-    printf("[PCE][ERR] PalettePCE(16) returned NULL\n");
+    EMU_LOG("[PCE][ERR] PalettePCE(16) returned NULL\n");
     for(;;) delay(1000);
   }
 
@@ -297,7 +298,7 @@ extern "C" void pce_display_init(void) {
       MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!pce_palette) {
-      printf("[PCE][ERR] pce_palette alloc failed\n");
+      EMU_LOG("[PCE][ERR] pce_palette alloc failed\n");
       free(corePal);
       for(;;) delay(1000);
     }
@@ -313,7 +314,7 @@ extern "C" void pce_display_init(void) {
   if (!s_frameQ) {
     s_frameQ = xQueueCreate(2, sizeof(PceFrameMsg)); // 2 frames max
     if (!s_frameQ) {
-      printf("[PCE-DISP] queue create failed\n");
+      EMU_LOG("[PCE-DISP] queue create failed\n");
     }
   }
 }
@@ -327,7 +328,7 @@ extern "C" void pce_display_start(void) {
       0
     );
     if (ok != pdPASS) {
-      printf("[PCE-DISP] task create failed\n");
+      EMU_LOG("[PCE-DISP] task create failed\n");
       if (s_task) {
         vTaskDelete(s_task);
       }
@@ -374,7 +375,7 @@ extern "C" void pce_display_submit_frame(const uint8_t *index_fb_base,
   // drop if full
   BaseType_t ok = xQueueSend(s_frameQ, &msg, 0);
   if (ok != pdTRUE) {
-    // printf("[PCE-DISP] frame dropped\n");
+    // EMU_LOG("[PCE-DISP] frame dropped\n");
   }
 }
 
@@ -398,7 +399,7 @@ extern "C" uint8_t* osd_gfx_framebuffer(int width, int height)
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!pce_index_fb_base) {
-      printf("[PCE] index_fb_base alloc failed\n");
+      EMU_LOG("[PCE] index_fb_base alloc failed\n");
       return nullptr;
     }
 

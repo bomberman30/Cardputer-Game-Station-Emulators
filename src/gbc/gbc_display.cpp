@@ -6,6 +6,7 @@
 #include <math.h>
 extern "C" {
   #include "gnuboy/gnuboy.h"
+#include "share/emu_log_cpp.h"
 }
 
 static constexpr int LCD_W = 240;
@@ -233,7 +234,7 @@ extern "C" void gbc_display_init(void)
   if (!s_frameQ) {
     s_frameQ = xQueueCreate(2, sizeof(GbcFrameMsg));  // 2 frames max 
     if (!s_frameQ) {
-      printf("[GBC-DISP] queue create failed\n");
+      EMU_LOG("[GBC-DISP] queue create failed\n");
     }
   }
 }
@@ -254,7 +255,7 @@ extern "C" void gbc_display_start(void)
       0            // core
     );
     if (ok != pdPASS) {
-      printf("[GBC-DISP] task create failed\n");
+      EMU_LOG("[GBC-DISP] task create failed\n");
       if (s_task) {
         vTaskDelete(s_task);
       }

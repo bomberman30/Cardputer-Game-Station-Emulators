@@ -12,6 +12,7 @@
 
 extern "C" {
   #include "genesis/gwenesis/bus/gwenesis_bus.h"
+#include "share/emu_log_cpp.h"
 }
 
 /* ============================ Config ============================ */
@@ -75,12 +76,12 @@ static bool save_now() {
 
   size_t sram_size = get_sram_size();
   if (sram_size == 0) {
-    printf("[GEN][SAVE] SRAM disabled or size=0, skip save\n");
+    EMU_LOG("[GEN][SAVE] SRAM disabled or size=0, skip save\n");
     return false;
   }
 
   if (!share::gameSaveEnsureParentReady(GENESIS_SAVE_DIR)) {
-    printf("[GEN][SAVE] storage path not ready, skip save\n");
+    EMU_LOG("[GEN][SAVE] storage path not ready, skip save\n");
     return false;
   }
 
@@ -89,7 +90,7 @@ static bool save_now() {
   FILE* f = fopen(g_save_path, "wb");
   if (!f) {
     share::setGameIsSaving(false);
-    printf("[GEN][SAVE] open failed for %s\n", g_save_path);
+    EMU_LOG("[GEN][SAVE] open failed for %s\n", g_save_path);
     return false;
   }
 
@@ -99,7 +100,7 @@ static bool save_now() {
   share::setGameIsSaving(false);
 
   if (n != sram_size) {
-    printf("[GEN][SAVE] fwrite failed: wrote %u / %u bytes\n",
+    EMU_LOG("[GEN][SAVE] fwrite failed: wrote %u / %u bytes\n",
            (unsigned)n, (unsigned)sram_size);
     return false;
   }
@@ -108,7 +109,7 @@ static bool save_now() {
   g_first_dirty = 0;
   g_sram_dirty  = false;
 
-  printf("[GEN][SAVE] SRAM saved to %s (%u bytes)\n",
+  EMU_LOG("[GEN][SAVE] SRAM saved to %s (%u bytes)\n",
          g_save_path, (unsigned)sram_size);
   return true;
 }
@@ -137,7 +138,7 @@ static void SaveTask(void* /*arg*/) {
       if (ok) {
         g_next_allow = xTaskGetTickCount() + pdMS_TO_TICKS(SAVE_GAP_MS);
       } else {
-        printf("[GEN][SAVE] save failed, will retry on next tick\n");
+        EMU_LOG("[GEN][SAVE] save failed, will retry on next tick\n");
       }
     }
   }
@@ -147,14 +148,14 @@ static void SaveTask(void* /*arg*/) {
 
 extern "C" void genesis_save_init(const char* romPathOrName) {
   if (!SRAM_ENABLED || !SRAM || SRAM_SIZE == 0) {
-    printf("[GEN][SAVE] task not started (no SRAM)\n");
+    EMU_LOG("[GEN][SAVE] task not started (no SRAM)\n");
     return;
   }
 
   if (!g_save_path) {
     g_save_path = (char*)malloc(PATH_MAX);
     if (!g_save_path) {
-      printf("[GEN][SAVE] OOM on path alloc, autosave disabled\n");
+      EMU_LOG("[GEN][SAVE] OOM on path alloc, autosave disabled\n");
       return;
     }
   }
@@ -182,44 +183,44 @@ extern "C" void genesis_save_init(const char* romPathOrName) {
     );
   }
 
-  printf("[GEN][SAVE] path=%s\n", g_save_path);
+  EMU_LOG("[GEN][SAVE] path=%s\n", g_save_path);
 }
 
 extern "C" void genesis_save_load(void) {
   if (!g_save_path) return;
   if (!SRAM_ENABLED || !SRAM) {
-    printf("[GEN][SAVE] skip load (SRAM disabled)\n");
+    EMU_LOG("[GEN][SAVE] skip load (SRAM disabled)\n");
     return;
   }
 
   if (!share::gameSaveEnsureParentReady(GENESIS_SAVE_DIR)) {
-    printf("[GEN][SAVE] skip load (storage not ready)\n");
+    EMU_LOG("[GEN][SAVE] skip load (storage not ready)\n");
     return;
   }
 
   struct stat st;
   if (stat(g_save_path, &st) != 0) {
-    printf("[GEN][SAVE] no existing save file for %s\n", g_save_path);
+    EMU_LOG("[GEN][SAVE] no existing save file for %s\n", g_save_path);
     return;
   }
 
   size_t sram_size = get_sram_size();
   if (sram_size == 0) {
-    printf("[GEN][SAVE] skip load (SRAM size=0)\n");
+    EMU_LOG("[GEN][SAVE] skip load (SRAM size=0)\n");
     return;
   }
 
   FILE* f = fopen(g_save_path, "rb");
   if (!f) {
-    printf("[GEN][SAVE] load open failed for %s\n", g_save_path);
+    EMU_LOG("[GEN][SAVE] load open failed for %s\n", g_save_path);
     return;
   }
 
   size_t n = fread(SRAM, 1, sram_size, f);
   fclose(f);
 
-  printf("[GEN][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
-  printf("[GEN][SAVE] SRAM loaded from %s (%u bytes)\n",
+  EMU_LOG("[GEN][SAVE] existing save size: %ld bytes\n", (long)st.st_size);
+  EMU_LOG("[GEN][SAVE] SRAM loaded from %s (%u bytes)\n",
          g_save_path, (unsigned)n);
 
   g_sram_dirty = false;
@@ -229,9 +230,9 @@ extern "C" void genesis_save_load(void) {
     uint8_t buf[16];
     size_t got = fread(buf, 1, sizeof(buf), dbg);
     fclose(dbg);
-    printf("[GEN][SAVE] first bytes: ");
-    for (size_t i = 0; i < got; ++i) printf("%02X ", buf[i]);
-    printf("\n");
+    EMU_LOG("[GEN][SAVE] first bytes: ");
+    for (size_t i = 0; i < got; ++i) EMU_LOG("%02X ", buf[i]);
+    EMU_LOG("\n");
   }
 }
 

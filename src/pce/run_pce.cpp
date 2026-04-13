@@ -11,6 +11,7 @@ extern "C" {
 #include "pce_display.h"
 #include "pce_sound.h"
 #include "pce_input.h"
+#include "share/emu_log_cpp.h"
 
 // ================== SAVE STATE (NYI) ==================
 
@@ -33,8 +34,8 @@ extern "C" bool pce_load_state_from_file(const char *path)
 
 void run_pce(const uint8_t* rom, size_t len, const char* rom_name)
 {
-  printf("[PCE] ===== PC Engine Start =====\n");
-  printf("[PCE] ROM size: %u bytes (%s)\n", (unsigned)len, rom_name);
+  EMU_LOG("[PCE] ===== PC Engine Start =====\n");
+  EMU_LOG("[PCE] ROM size: %u bytes (%s)\n", (unsigned)len, rom_name);
   const int sampleRate = 22050;
 
   M5Cardputer.Display.setRotation(1);
@@ -46,14 +47,14 @@ void run_pce(const uint8_t* rom, size_t len, const char* rom_name)
   pce_sound_init(sampleRate);
 
   InitPCE(sampleRate, false);
-  printf("[PCE] Core initialized\n");
+  EMU_LOG("[PCE] Core initialized\n");
 
   if (LoadCard((uint8_t*)rom, len) != 0) {
-    printf("[PCE][ERR] ROM loading failed (len=%u)\n", (unsigned)len);
+    EMU_LOG("[PCE][ERR] ROM loading failed (len=%u)\n", (unsigned)len);
     for (;;) delay(1000);
   }
-  printf("[PCE] ROM loaded successfully\n");
+  EMU_LOG("[PCE] ROM loaded successfully\n");
 
-  printf("[PCE] Entering RunPCE() loop\n");
+  EMU_LOG("[PCE] Entering RunPCE() loop\n");
   RunPCE();
 }

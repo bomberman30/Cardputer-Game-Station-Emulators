@@ -8,6 +8,7 @@ extern "C" {
 #include "gbc_input.h"
 #include "gbc_save.h"
 #include "share/utils.h"
+#include "share/emu_log_cpp.h"
 
 static uint16_t* s_gbFramebuf = nullptr;
 static int16_t* s_audioBuf = nullptr;
@@ -37,7 +38,7 @@ void gbc_allocate_buffers() {
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!s_gbFramebuf) {
-        printf("[GBC] FATAL: framebuffer alloc failed\n");
+        EMU_LOG("[GBC] FATAL: framebuffer alloc failed\n");
         abort();
     }
     memset(s_gbFramebuf, 0, fbSize);
@@ -48,7 +49,7 @@ void gbc_allocate_buffers() {
         MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL
     );
     if (!s_audioBuf) {
-        printf("[GBC] FATAL: audio buffer alloc failed\n");
+        EMU_LOG("[GBC] FATAL: audio buffer alloc failed\n");
         abort();
     }
     memset(s_audioBuf, 0, 2048 * sizeof(int16_t));
@@ -81,7 +82,7 @@ void run_gbc(const uint8_t* romData, size_t romLen, const char* romPathOrName) {
         &gbc_video_callback,
         &gbc_audio_callback
     );
-    printf("[GBC] gnuboy_init => %d\n", ret);
+    EMU_LOG("[GBC] gnuboy_init => %d\n", ret);
     if (ret < 0) return;
 
     // buffers
@@ -90,7 +91,7 @@ void run_gbc(const uint8_t* romData, size_t romLen, const char* romPathOrName) {
 
     // load ROM
     ret = gnuboy_load_rom(romData, romLen);
-    printf("[GBC] gnuboy_load_rom => %d\n", ret);
+    EMU_LOG("[GBC] gnuboy_load_rom => %d\n", ret);
     if (ret < 0) return;
 
     gnuboy_reset(true);
@@ -111,9 +112,9 @@ void run_gbc(const uint8_t* romData, size_t romLen, const char* romPathOrName) {
     gbPalette                 = gbcGame ? -1 : gbPalette;
     int lastPalette           = -1;
 
-    printf("Palette initiale: %d\n", gbPalette);
+    EMU_LOG("Palette initiale: %d\n", gbPalette);
 
-    printf("[GBC] starting main loop @ %d FPS\n", targetFps);
+    EMU_LOG("[GBC] starting main loop @ %d FPS\n", targetFps);
 
     while (true) {
         if (!gbcGame && lastPalette != gbPalette) {
@@ -137,7 +138,7 @@ void run_gbc(const uint8_t* romData, size_t romLen, const char* romPathOrName) {
         uint32_t nowMs = millis();
         if (nowMs - lastFpsMs >= 1000) {
             float fps = (frameCount * 1000.0f) / (nowMs - lastFpsMs);
-            printf("[GBC] FPS: %.2f | HEAP %u\n", fps, esp_get_free_heap_size());
+            EMU_LOG("[GBC] FPS: %.2f | HEAP %u\n", fps, esp_get_free_heap_size());
             frameCount = 0;
             lastFpsMs  = nowMs;
         }
