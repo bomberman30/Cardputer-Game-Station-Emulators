@@ -1,3 +1,4 @@
+#pragma GCC optimize ("Ofast")
 /* This file is part of Snes9x. See LICENSE file. */
 
 #include "snes9x.h"
