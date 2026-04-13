@@ -45,6 +45,55 @@
 
 #define CLAMP_POS(reg) if(reg < 0) { reg += 160; }  reg %= 160;
 
+namespace {
+// Returns reset timing state: 1 = display section, -1 = inter-copy delay, 0 = neither.
+// This replaces the removed PxPosResetWhen lookup table using NUSIZ copy layout rules.
+inline Int16 classifyPlayerResetWhen(const uInt8 nusiz, const Int16 oldPos, const Int16 newPos)
+{
+  const Int16 beamPos = (newPos + 155) % 160;  // Inverse of newPos = (hpos + 5) % 160.
+  const Int16 rel = (beamPos - (oldPos & 0xFF) + 160) % 160;
+
+  switch(nusiz & 0x07)
+  {
+    case 0x00:  // one copy
+      return rel < 8 ? 1 : 0;
+
+    case 0x01:  // two copies - close (0,16)
+      if(rel < 8 || (rel >= 16 && rel < 24)) return 1;
+      if(rel >= 8 && rel < 16) return -1;
+      return 0;
+
+    case 0x02:  // two copies - medium (0,32)
+      if(rel < 8 || (rel >= 32 && rel < 40)) return 1;
+      if(rel >= 8 && rel < 32) return -1;
+      return 0;
+
+    case 0x03:  // three copies - close (0,16,32)
+      if(rel < 8 || (rel >= 16 && rel < 24) || (rel >= 32 && rel < 40)) return 1;
+      if((rel >= 8 && rel < 16) || (rel >= 24 && rel < 32)) return -1;
+      return 0;
+
+    case 0x04:  // two copies - wide (0,64)
+      if(rel < 8 || (rel >= 64 && rel < 72)) return 1;
+      if(rel >= 8 && rel < 64) return -1;
+      return 0;
+
+    case 0x05:  // double size player
+      return (rel > 0 && rel <= 16) ? 1 : 0;
+
+    case 0x06:  // three copies - medium (0,32,64)
+      if(rel < 8 || (rel >= 32 && rel < 40) || (rel >= 64 && rel < 72)) return 1;
+      if((rel >= 8 && rel < 32) || (rel >= 40 && rel < 64)) return -1;
+      return 0;
+
+    case 0x07:  // quad size player
+      return (rel > 0 && rel <= 32) ? 1 : 0;
+  }
+
+  return 0;
+}
+} // namespace
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 TIA::TIA(Console& console, Sound& sound, Settings& settings)
   : myConsole(console),
@@ -1648,7 +1697,7 @@ inline uInt8 TIA::dumpedInputPort(int resistance)
         // TODO - update player timing
 
         // Find out under what condition the player is being reset
-        delay = TIATables::PxPosResetWhen[myNUSIZ0 & 7][myPOSP0][newx];
+        delay = classifyPlayerResetWhen(myNUSIZ0, myPOSP0, newx);
 
         switch(delay)
         {
@@ -1698,7 +1747,7 @@ inline uInt8 TIA::dumpedInputPort(int resistance)
         // TODO - update player timing
 
         // Find out under what condition the player is being reset
-        delay = TIATables::PxPosResetWhen[myNUSIZ1 & 7][myPOSP1][newx];
+        delay = classifyPlayerResetWhen(myNUSIZ1, myPOSP1, newx);
 
         switch(delay)
         {

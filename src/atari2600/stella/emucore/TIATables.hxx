@@ -183,10 +183,6 @@ class TIATables
     // Used to reflect a players graphics
     static const uInt8 GRPReflect[256];
 
-    // Indicates if player is being reset during delay, display or other times
-    // [nusiz][old pixel][new pixel]
-    static const Int8 PxPosResetWhen[8][160][160];
-
   private:
     // Compute the collision decode table
     static void buildCollisionMaskTable();
@@ -205,9 +201,6 @@ class TIATables
 
     // Compute the player reflect table
     static void buildGRPReflectTable();
-
-    // Compute the player position reset when table
-    static void buildPxPosResetWhenTable();
 };
 
 #endif

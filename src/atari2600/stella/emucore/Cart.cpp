@@ -193,18 +193,18 @@ Cartridge* Cartridge::create(const uInt8* image, uInt32 size, string& md5,
     cartridge = new Cartridge4K(image, size, settings);
   else if(type == "4KSC")
     cartridge = new Cartridge4KSC(image, size, settings);
-  else if(type == "AR")
-    cartridge = new CartridgeAR(image, size, settings);
-  else if(type == "CM")
-    cartridge = new CartridgeCM(image, size, settings);
+  // else if(type == "AR")
+  //   cartridge = new CartridgeAR(image, size, settings);
+  // else if(type == "CM")
+  //   cartridge = new CartridgeCM(image, size, settings);
   // else if(type == "CTY")
   //   cartridge = new CartridgeCTY(image, size, osystem);
   else if(type == "CV")
     cartridge = new CartridgeCV(image, size, settings);
-  else if(type == "DPC")
-    cartridge = new CartridgeDPC(image, size, settings);
-  else if(type == "DPC+")
-    cartridge = new CartridgeDPCPlus(image, size, settings);
+  // else if(type == "DPC")
+  //   cartridge = new CartridgeDPC(image, size, settings);
+  // else if(type == "DPC+")
+  //   cartridge = new CartridgeDPCPlus(image, size, settings);
   else if(type == "E0")
     cartridge = new CartridgeE0(image, size, settings);
   else if(type == "E7")
