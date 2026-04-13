@@ -37,9 +37,10 @@ extern "C" {
 
 #include <M5Cardputer.h>
 #include "display.h"  // fullscreen/scanline bool
+#include "run_sms.h"
 
 extern bool fullscreen;
 extern bool scanline;
 
 void cardputer_input_init();
-void cardputer_read_input(bool isGG);
+void cardputer_read_input(SmsConsoleMode mode);

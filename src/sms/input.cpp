@@ -16,9 +16,10 @@ static inline bool key(char c) {
 void cardputer_input_init() {
 }
 
-void cardputer_read_input(bool isGG) {
+void cardputer_read_input(SmsConsoleMode mode) {
     int smsButtons = 0; // -> input.pad[0]
     int smsSystem  = 0; // -> input.system
+    int colecoKeypad = INPUT_COLECO_KEYPAD_NONE;
 
     M5Cardputer.update();
     Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
@@ -83,10 +84,33 @@ void cardputer_read_input(bool isGG) {
     if (key(CARDPUTER_BTN_A_1) || key(CARDPUTER_BTN_A_2)) smsButtons |= INPUT_BUTTON1;
     if (key(CARDPUTER_BTN_B))             smsButtons |= INPUT_BUTTON2;
 
-    if (isGG) {
+    if (mode == SMS_MODE_COLECO) {
+        /* Coleco requested action mapping: J/K/L => B1/B2/B1 */
+        if (key('j') || key('J')) smsButtons |= INPUT_BUTTON1;
+        if (key('k') || key('K')) smsButtons |= INPUT_BUTTON2;
+        if (key('l') || key('L')) smsButtons |= INPUT_BUTTON1;
+    }
+
+    if (mode == SMS_MODE_GG) {
         if (key(CARDPUTER_BTN_START)) smsSystem |= INPUT_START;
-    } else {
+    } else if (mode == SMS_MODE_SMS) {
         if (key(CARDPUTER_BTN_START)) smsSystem |= INPUT_PAUSE;
+    } else if (mode == SMS_MODE_COLECO) {
+        /* Coleco keypad: direct 0-9, plus * and # on Fn+8 / Fn+3. */
+        if (status.fn && key('8')) colecoKeypad = 10;      /* * */
+        else if (status.fn && key('3')) colecoKeypad = 11; /* # */
+        else if (key('0')) colecoKeypad = 0;
+        else if (key('1')) colecoKeypad = 1;
+        else if (key('2')) colecoKeypad = 2;
+        else if (key('3')) colecoKeypad = 3;
+        else if (key('4')) colecoKeypad = 4;
+        else if (key('5')) colecoKeypad = 5;
+        else if (key('6')) colecoKeypad = 6;
+        else if (key('7')) colecoKeypad = 7;
+        else if (key('8')) colecoKeypad = 8;
+        else if (key('9')) colecoKeypad = 9;
+
+        smsSystem |= ((colecoKeypad << INPUT_COLECO_KEYPAD_SHIFT) & INPUT_COLECO_KEYPAD_MASK);
     }
 
     input.pad[0]  = smsButtons;

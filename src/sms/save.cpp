@@ -193,3 +193,22 @@ void sms_save_tick(void){
 void sms_save_force_flush(void){
   flush_now();
 }
+
+void sms_save_shutdown(void){
+  if (g_save_task) {
+    vTaskDelete(g_save_task);
+    g_save_task = nullptr;
+  }
+
+  free(g_sram_shadow);
+  g_sram_shadow = nullptr;
+
+  free(g_save_path);
+  g_save_path = nullptr;
+
+  g_sram = nullptr;
+  g_sram_len = 0;
+  g_crc_last = 0;
+  g_flush_req = false;
+  g_check_req = false;
+}
