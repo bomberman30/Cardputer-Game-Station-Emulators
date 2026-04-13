@@ -18,8 +18,12 @@ extern bool snes_interlace_lock_parity;
 
 typedef struct {
     uint16_t y;
-    uint16_t pixels[LCD_W];
+    uint16_t _pad;          // align pixels[] to a 4-byte boundary
+    uint16_t pixels[LCD_W]; // offset 4 — 4-aligned from any 4-aligned base
 } SnesLineBuf;
+// sizeof = 4 + 480 = 484 (divisible by 4)
+// s_buf[0].pixels @ base+4   (4-aligned)
+// s_buf[1].pixels @ base+488 (4-aligned)
 
 enum BufState : uint8_t {
     BUF_FREE = 0,
@@ -91,7 +95,7 @@ static void snes_display_task(void *arg)
                     if (y < LCD_H) {
                         start_spi_if_needed();
                         M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
-                        M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+                        M5Cardputer.Display.writePixels(s_buf[0].pixels, LCD_W);
                     }
 
                     s_state[0] = BUF_FREE;
@@ -106,7 +110,7 @@ static void snes_display_task(void *arg)
                     if (y < LCD_H) {
                         start_spi_if_needed();
                         M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
-                        M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+                        M5Cardputer.Display.writePixels(s_buf[1].pixels, LCD_W);
                     }
 
                     s_state[1] = BUF_FREE;
@@ -122,12 +126,12 @@ static void snes_display_task(void *arg)
                     if (y < LCD_H) {
                         start_spi_if_needed();
                         M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
-                        M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+                        M5Cardputer.Display.writePixels(s_buf[0].pixels, LCD_W);
 
                         uint16_t y2 = (y ^ 1u);
                         if (y2 < LCD_H) {
                             M5Cardputer.Display.setAddrWindow(0, (int)y2, LCD_W, 1);
-                            M5Cardputer.Display.pushPixels(s_buf[0].pixels, LCD_W);
+                            M5Cardputer.Display.writePixels(s_buf[0].pixels, LCD_W);
                         }
                     }
 
@@ -143,12 +147,12 @@ static void snes_display_task(void *arg)
                     if (y < LCD_H) {
                         start_spi_if_needed();
                         M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
-                        M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+                        M5Cardputer.Display.writePixels(s_buf[1].pixels, LCD_W);
 
                         uint16_t y2 = (y ^ 1u);
                         if (y2 < LCD_H) {
                             M5Cardputer.Display.setAddrWindow(0, (int)y2, LCD_W, 1);
-                            M5Cardputer.Display.pushPixels(s_buf[1].pixels, LCD_W);
+                            M5Cardputer.Display.writePixels(s_buf[1].pixels, LCD_W);
                         }
                     }
 
@@ -341,7 +345,7 @@ extern "C" void snes_display_submit_line(uint32_t y,
     }
 
     M5Cardputer.Display.setAddrWindow(0, (int)y, LCD_W, 1);
-    M5Cardputer.Display.pushPixels(lineBuf, LCD_W);
+    M5Cardputer.Display.writePixels(lineBuf, LCD_W);
 }
 
 #endif

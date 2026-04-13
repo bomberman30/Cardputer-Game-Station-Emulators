@@ -188,7 +188,7 @@ void display_task(void* arg) {
       int chunk = (linesToPush > 16) ? 16 : linesToPush;
       M5.Lcd.setAddrWindow(0, prevDstY, g_dstW, chunk);
       for (int i = 0; i < chunk; ++i) {
-        M5.Lcd.pushPixels(s_lineFull, g_dstW);
+        M5.Lcd.writePixels(s_lineFull, g_dstW);
       }
       prevDstY    += chunk;
       linesToPush -= chunk;
