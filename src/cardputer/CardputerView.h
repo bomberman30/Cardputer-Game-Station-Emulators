@@ -20,7 +20,9 @@
 #define RECT_COLOR_LIGHT 0xD69A
 #define TEXT_COLOR       0xEF7D
 #define SMS_COLOR        0x3D7F  // bleu clair 
-#define GENESIS_COLOR    0x43BF  // bleu 
+#define SG1000_COLOR     0x459F  // bleu 
+#define GENESIS_COLOR    0x43BF  // bleu foncé
+#define COLECO_COLOR     0xEBA0  // ambre/orange
 #define NES_COLOR        0xFA68  // rouge/orange 
 #define SNES_COLOR       0xD920  // rouge
 #define GAMEGEAR_COLOR   0xC29F
@@ -30,6 +32,8 @@
 #define PCE_COLOR        0xF0FC
 #define LYNX_COLOR       0xD588
 #define GAMEBOY_COLOR    0xFCD3
+#define MSX1_COLOR       0x8E9F
+#define GX4000_COLOR     0xDDBF  // violet clair
 #define FOLDER_COLOR     0xFEC0
 
 // TEXT SIZE
@@ -77,6 +81,7 @@ public:
     void showValidExt(const std::vector<std::string>& exts);
     static void copyProgress(size_t total, size_t current, void* userCtx = nullptr);
     void displaySnesInfo();
+    void displayMsxInfo();
 private:
     static M5GFX* Display; 
     void drawRect(bool selected, uint8_t margin, uint16_t startY, uint16_t sizeX, uint16_t sizeY, uint16_t stepY);
