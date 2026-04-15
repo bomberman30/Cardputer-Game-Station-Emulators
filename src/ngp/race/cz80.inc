@@ -9,6 +9,8 @@
 // use zR8 for B/C/D/E/H/L registers only
 // use zR16 for BC/DE/HL registers only
 
+#pragma GCC optimize ("Ofast")
+
 #ifdef CZ80_USE_MAME_CHANGE_PC
 #include "memory.h"
 #undef READ_WORD

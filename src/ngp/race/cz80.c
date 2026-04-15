@@ -14,6 +14,7 @@
 
 #include "cz80.h"
 
+#pragma GCC optimize ("Ofast")
 
 /* include macro file */
 
