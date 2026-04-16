@@ -41,7 +41,7 @@
 int finscan;
 int contador;
 extern int gfx_hacks;
-extern int fixsoundmahjong;
+extern int *fixsoundmahjong;
 extern bool s_interlace_parity;
 
 #define N_ALLREGS 256
@@ -300,7 +300,8 @@ static INLINE void tlcsMemWriteBaddrB(unsigned char addr, unsigned char data)
    if (gfx_hacks==1)
    {
       if (mainrom[0x000020] == 0x11 && mainrom[0x000021] == 0x01)
-         fixsoundmahjong++;
+         if (fixsoundmahjong)
+            (*fixsoundmahjong)++;
    }
 
    switch(addr)

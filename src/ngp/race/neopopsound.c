@@ -29,14 +29,16 @@
 
 #include "types.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "neopopsound.h"
 
 /* ============================================================================= */
 
-SoundChip toneChip;
-SoundChip noiseChip;
+SoundChip *toneChip;
+SoundChip *noiseChip;
+int *fixsoundmahjong;
 
 /* ==== DAC */
 #define DAC_BUFFERSIZE		(4 * 1024)
@@ -47,7 +49,6 @@ static _u16* dacBufferL = NULL;
 static int dacLBufferRead  = 0;
 static int dacLBufferWrite = 0;
 static int dacLBufferCount = 0;
-int fixsoundmahjong;
 
 /* ============================================================================= */
 
@@ -61,6 +62,23 @@ int fixsoundmahjong;
 
 static _u32 VolTable[16];
 static _u32 UpdateStep = 0;	/* Number of steps during one sample. */
+
+int sound_allocate_state(void)
+{
+    if (!toneChip)
+        toneChip = (SoundChip*)calloc(1, sizeof(*toneChip));
+
+    if (!noiseChip)
+        noiseChip = (SoundChip*)calloc(1, sizeof(*noiseChip));
+
+    if (!fixsoundmahjong)
+        fixsoundmahjong = (int*)calloc(1, sizeof(*fixsoundmahjong));
+
+    if (!toneChip || !noiseChip || !fixsoundmahjong)
+        return 0;
+
+    return 1;
+}
 
 /* Formulas for noise generator */
 /* bit0 = output */
@@ -88,14 +106,19 @@ void audio_dac_init(void)
     dacLBufferRead  = 0;
     dacLBufferWrite = 0;
     dacLBufferCount = 0;
-    memset(dacBufferL, 0, DAC_BUFFERSIZE * sizeof(_u16));
+    if (dacBufferL)
+        memset(dacBufferL, 0, DAC_BUFFERSIZE * sizeof(_u16));
 }
 
 static _u16 sample_chip_tone(void)
 {
+   SoundChip *chip = toneChip;
    int i;
    int vol[3];
    unsigned int out;
+
+   if (!chip)
+      return 0;
 
    /* vol[] keeps track of how long each square wave stays */
    /* in the 1 position during the sample period. */
@@ -103,8 +126,8 @@ static _u16 sample_chip_tone(void)
 
    for (i = 0; i < 3; i++)
    {
-      if (toneChip.Output[i]) vol[i] += toneChip.Count[i];
-      toneChip.Count[i] -= STEP;
+      if (chip->Output[i]) vol[i] += chip->Count[i];
+      chip->Count[i] -= STEP;
 
       /* Period[i] is the half period of the square wave. Here, in each */
       /* loop I add Period[i] twice, so that at the end of the loop the */
@@ -115,23 +138,23 @@ static _u16 sample_chip_tone(void)
       /* and vol[i] incremented only if the exit status of the square */
       /* wave is 1. */
 
-      while (toneChip.Count[i] <= 0)
+      while (chip->Count[i] <= 0)
       {
-         toneChip.Count[i] += toneChip.Period[i];
-         if (toneChip.Count[i] > 0)
+         chip->Count[i] += chip->Period[i];
+         if (chip->Count[i] > 0)
          {
-            toneChip.Output[i] ^= 1;
-            if (toneChip.Output[i]) vol[i] += toneChip.Period[i];
+            chip->Output[i] ^= 1;
+            if (chip->Output[i]) vol[i] += chip->Period[i];
             break;
          }
-         toneChip.Count[i] += toneChip.Period[i];
-         vol[i] += toneChip.Period[i];
+         chip->Count[i] += chip->Period[i];
+         vol[i] += chip->Period[i];
       }
-      if (toneChip.Output[i]) vol[i] -= toneChip.Count[i];
+      if (chip->Output[i]) vol[i] -= chip->Count[i];
    }
 
-   out = vol[0] * toneChip.Volume[0] + vol[1] * toneChip.Volume[1] +
-      vol[2] * toneChip.Volume[2];
+   out = vol[0] * chip->Volume[0] + vol[1] * chip->Volume[1] +
+      vol[2] * chip->Volume[2];
 
    if (out > MAX_OUTPUT_STEP)
       out = MAX_OUTPUT_STEP;
@@ -143,39 +166,43 @@ static _u16 sample_chip_tone(void)
 
 static _u16 sample_chip_noise(void)
 {
+   SoundChip *chip = noiseChip;
    int vol3 = 0;
    unsigned int out;
    int left;
 
+   if (!chip)
+      return 0;
+
    /* vol[] keeps track of how long each square wave stays */
    /* in the 1 position during the sample period. */
-   if (noiseChip.Volume[3])
+   if (chip->Volume[3])
    {
       left = STEP;
       do
       {
-         int nextevent = min(noiseChip.Count[3],left);
+         int nextevent = min(chip->Count[3],left);
 
-         if (noiseChip.Output[3])
-            vol3 += noiseChip.Count[3];
-         noiseChip.Count[3] -= nextevent;
-         if (noiseChip.Count[3] <= 0)
+         if (chip->Output[3])
+            vol3 += chip->Count[3];
+         chip->Count[3] -= nextevent;
+         if (chip->Count[3] <= 0)
          {
-            if (noiseChip.RNG & 1)
-               noiseChip.RNG ^= noiseChip.NoiseFB;
-            noiseChip.RNG >>= 1;
-            noiseChip.Output[3] = noiseChip.RNG & 1;
-            noiseChip.Count[3] += noiseChip.Period[3];
-            if (noiseChip.Output[3])
-               vol3 += noiseChip.Period[3];
+            if (chip->RNG & 1)
+               chip->RNG ^= chip->NoiseFB;
+            chip->RNG >>= 1;
+            chip->Output[3] = chip->RNG & 1;
+            chip->Count[3] += chip->Period[3];
+            if (chip->Output[3])
+               vol3 += chip->Period[3];
          }
-         if (noiseChip.Output[3])
-            vol3 -= noiseChip.Count[3];
+         if (chip->Output[3])
+            vol3 -= chip->Count[3];
 
          left -= nextevent;
       } while (left > 0);
    }
-   out = vol3 * noiseChip.Volume[3];
+   out = vol3 * chip->Volume[3];
 
    if (out > MAX_OUTPUT_STEP)
       out = MAX_OUTPUT_STEP;
@@ -187,6 +214,12 @@ static _u16 sample_chip_noise(void)
 
 void sound_update(_u16* chip_buffer, int length_bytes)
 {
+   if (!toneChip || !noiseChip)
+   {
+      memset(chip_buffer, 0, length_bytes);
+      return;
+   }
+
    length_bytes >>= 1; /* turn it into words */
    while (length_bytes)
    {
@@ -202,6 +235,9 @@ void sound_update(_u16* chip_buffer, int length_bytes)
 
 void WriteSoundChip(SoundChip* chip, _u8 data)
 {
+	if (!chip)
+		return;
+
 	/* Command */
 	if (data & 0x80)
 	{
@@ -234,7 +270,7 @@ void WriteSoundChip(SoundChip* chip, _u8 data)
 #ifdef NEOPOP_DEBUG
             if (filter_sound)
             {
-               if (chip == &toneChip)
+               if (chip == toneChip)
                   system_debug_message("sound (T): Set Tone %d Volume to %d (0 = min, 15 = max)", c, 15 - (data & 0xF));
                else
                   system_debug_message("sound (N): Set Tone %d Volume to %d (0 = min, 15 = max)", c, 15 - (data & 0xF));
@@ -260,7 +296,7 @@ void WriteSoundChip(SoundChip* chip, _u8 data)
                      case 3: pm = "Tone#2"; break;
                   }
 
-                  if (chip == &toneChip)
+                  if (chip == toneChip)
                      system_debug_message("sound (T): Set Noise Mode to %s, Period = %s", nm, pm);
                   else
                      system_debug_message("sound (N): Set Noise Mode to %s, Period = %s", nm, pm);
@@ -301,7 +337,7 @@ void WriteSoundChip(SoundChip* chip, _u8 data)
 #ifdef NEOPOP_DEBUG
             if (filter_sound)
             {
-               if (chip == &toneChip)
+               if (chip == toneChip)
                   system_debug_message("sound (T): Set Tone %d Frequency to %d", c, chip->Register[r]);
                else
                   system_debug_message("sound (N): Set Tone %d Frequency to %d", c, chip->Register[r]);
@@ -323,18 +359,21 @@ void dac_writeL(unsigned char data)
 
    if(conv==5)
       conv=6;
-   else
-   {
-      conv=5;
+	else
+	{
+	      conv=5;
 
-      /* Arregla el sonido del Super Real Mahjong */
-      if (fixsoundmahjong>500)
-         conv=3;
-   }    
+	      /* Arregla el sonido del Super Real Mahjong */
+	      if (fixsoundmahjong && *fixsoundmahjong > 500)
+	         conv=3;
+	   }
 
 
-   for(i=0;i<conv;i++)
-   {
+	   if (!dacBufferL)
+	      return;
+
+	   for(i=0;i<conv;i++)
+	   {
       /* Write to buffer */
       dacBufferL[dacLBufferWrite++] = (data-0x80)<<8;
 
@@ -351,6 +390,12 @@ void dac_writeL(unsigned char data)
  
 void dac_update(_u16* dac_buffer, int length_bytes)
 {
+	if (!dacBufferL)
+	{
+		memset(dac_buffer, 0, length_bytes);
+		return;
+	}
+
 	while (length_bytes > 1)
 	{
 		/* Copy then clear DAC data */
@@ -378,6 +423,9 @@ void sound_init(int SampleRate)
 	int i;
 	double out;
 
+	if (!sound_allocate_state())
+		return;
+
 	/* the base clock for the tone generators is the chip clock divided by 16; */
 	/* for the noise generator, it is clock / 256. */
 	/* Here we calculate the number of steps which happen during one sample */
@@ -387,26 +435,27 @@ void sound_init(int SampleRate)
 	UpdateStep = (_u32)(((double)STEP * SampleRate * 16) / SOUNDCHIPCLOCK);
 
 	/* Initialise Left Chip */
-	memset(&toneChip, 0, sizeof(SoundChip));
+	memset(toneChip, 0, sizeof(*toneChip));
 
 	/* Initialise Right Chip */
-	memset(&noiseChip, 0, sizeof(SoundChip));
+	memset(noiseChip, 0, sizeof(*noiseChip));
+	*fixsoundmahjong = 0;
 
 	/* Default register settings */
 	for (i = 0;i < 8;i+=2)
 	{
-		toneChip.Register[i] = 0;
-		toneChip.Register[i + 1] = 0x0f;	/* volume = 0 */
-		noiseChip.Register[i] = 0;
-		noiseChip.Register[i + 1] = 0x0f;	/* volume = 0 */
+		toneChip->Register[i] = 0;
+		toneChip->Register[i + 1] = 0x0f;	/* volume = 0 */
+		noiseChip->Register[i] = 0;
+		noiseChip->Register[i + 1] = 0x0f;	/* volume = 0 */
 	}
 
 	for (i = 0;i < 4;i++)
 	{
-		toneChip.Output[i] = 0;
-		toneChip.Period[i] = toneChip.Count[i] = UpdateStep;
-		noiseChip.Output[i] = 0;
-		noiseChip.Period[i] = noiseChip.Count[i] = UpdateStep;
+		toneChip->Output[i] = 0;
+		toneChip->Period[i] = toneChip->Count[i] = UpdateStep;
+		noiseChip->Output[i] = 0;
+		noiseChip->Period[i] = noiseChip->Count[i] = UpdateStep;
 	}
 
 	/* Build the volume table */
@@ -421,8 +470,11 @@ void sound_init(int SampleRate)
 	VolTable[15] = 0;
 
 	/* Clear the DAC buffer */
-	for (i = 0; i < DAC_BUFFERSIZE; i++)
-		dacBufferL[i] = 0;
+	if (dacBufferL)
+	{
+		for (i = 0; i < DAC_BUFFERSIZE; i++)
+			dacBufferL[i] = 0;
+	}
 
 	dacLBufferCount = 0;
 	dacLBufferRead  = 0;
@@ -439,6 +491,9 @@ void system_sound_chipreset(void)
 
 int sound_system_init(void)
 {
+   if (!sound_allocate_state())
+      return 0;
+
    system_sound_chipreset();	/* Resets chips */
    return 1;
 }

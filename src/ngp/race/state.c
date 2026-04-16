@@ -166,8 +166,15 @@ static int state_store(race_state_t *rs)
 
   /* Sound */
   rs->sndCycles = sndCycles;
-  memcpy(&rs->toneChip, &toneChip, sizeof(SoundChip));
-  memcpy(&rs->noiseChip, &noiseChip, sizeof(SoundChip));
+  if (toneChip)
+    memcpy(&rs->toneChip, toneChip, sizeof(SoundChip));
+  else
+    memset(&rs->toneChip, 0, sizeof(SoundChip));
+
+  if (noiseChip)
+    memcpy(&rs->noiseChip, noiseChip, sizeof(SoundChip));
+  else
+    memset(&rs->noiseChip, 0, sizeof(SoundChip));
 
   /* Timers */
   rs->timer0 = timer0;
@@ -245,8 +252,11 @@ static int state_restore(race_state_t *rs)
 
   /* Sound */
   sndCycles = rs->sndCycles;
-  memcpy(&toneChip, &rs->toneChip, sizeof(SoundChip));
-  memcpy(&noiseChip, &rs->noiseChip, sizeof(SoundChip));
+  if (sound_allocate_state())
+  {
+    memcpy(toneChip, &rs->toneChip, sizeof(SoundChip));
+    memcpy(noiseChip, &rs->noiseChip, sizeof(SoundChip));
+  }
 
   /* Timers */
   timer0 = rs->timer0;

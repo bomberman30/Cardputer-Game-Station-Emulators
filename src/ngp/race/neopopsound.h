@@ -39,13 +39,15 @@ typedef struct
 
 } SoundChip;
 
-extern SoundChip toneChip;
-extern SoundChip noiseChip;
+extern SoundChip *toneChip;
+extern SoundChip *noiseChip;
+extern int *fixsoundmahjong;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+int sound_allocate_state(void);
 void WriteSoundChip(SoundChip* chip, _u8 data);
 
 int sound_system_init(void);
@@ -54,8 +56,8 @@ void system_sound_chipreset(void);
 
 void system_VBL(void);
 
-#define Write_SoundChipTone(VALUE)		(WriteSoundChip(&toneChip, VALUE))
-#define Write_SoundChipNoise(VALUE)		(WriteSoundChip(&noiseChip, VALUE))
+#define Write_SoundChipTone(VALUE)		(WriteSoundChip(toneChip, VALUE))
+#define Write_SoundChipNoise(VALUE)		(WriteSoundChip(noiseChip, VALUE))
 
 void sound_init(int SampleRate);
 
