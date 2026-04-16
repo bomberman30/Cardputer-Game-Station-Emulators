@@ -85,7 +85,13 @@ void run_sms(const uint8_t* romPtr, size_t romLen, SmsConsoleMode mode, const ch
   smsZoomPercent = isGG ? 100 : 110;
   render_set_console_type(cart.type);
   
-  z80_allocate_flag_tables();
+  if (!z80_allocate_flag_tables()) {
+    EMU_LOG("SMS Z80 alloc failed\n");
+    free(videoBuf);
+    free(sram);
+    sms.coleco_bios = nullptr;
+    return;
+  }
   if (!sms_init_ram()) {
     EMU_LOG("SMS WRAM alloc failed\n");
     free(videoBuf);

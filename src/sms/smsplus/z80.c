@@ -60,6 +60,7 @@
 #include "cpuintrf.h"
 #include "z80.h"
 
+#include <stdlib.h>
 #include "shared.h"
 extern void cpu_writemem16(int address, int data);
 extern void cpu_writeport(int port, int data);
@@ -123,6 +124,9 @@ unsigned char *cpu_writemap[8];
 #define INT_IRQ 0x01
 #define NMI_IRQ 0x02
 
+static Z80_Regs *s_z80;
+#define Z80 (*s_z80)
+
 #define	_PPC	Z80.PREPC.d		/* previous program counter */
 
 #define _PCD	Z80.PC.d
@@ -170,8 +174,7 @@ unsigned char *cpu_writemap[8];
 #define _HALT	Z80.HALT
 
 int z80_ICount;
-static Z80_Regs Z80;
-Z80_Regs *Z80_Context = &Z80;
+Z80_Regs *Z80_Context = NULL;
 static UINT32 EA;
 int after_EI = 0;
 
@@ -181,13 +184,25 @@ static UINT8 *SZP = 0;		/* zero, sign and parity flags */
 static UINT8 *SZHV_inc = 0; /* zero, sign, half carry and overflow flags INC r8 */
 static UINT8 *SZHV_dec = 0; /* zero, sign, half carry and overflow flags DEC r8 */
 
+static int z80_allocate_context(void)
+{
+    if (!s_z80)
+        s_z80 = (Z80_Regs *)calloc(1, sizeof(Z80_Regs));
+
+    Z80_Context = s_z80;
+    return s_z80 != NULL;
+}
+
 int z80_allocate_flag_tables(void)
 {
-    SZ         = (uint8_t*)malloc(256);
-    SZ_BIT     = (uint8_t*)malloc(256);
-    SZP        = (uint8_t*)malloc(256);
-    SZHV_inc   = (uint8_t*)malloc(256);
-    SZHV_dec   = (uint8_t*)malloc(256);
+    if (!z80_allocate_context())
+        return 0;
+
+    if (!SZ)       SZ       = (uint8_t*)malloc(256);
+    if (!SZ_BIT)   SZ_BIT   = (uint8_t*)malloc(256);
+    if (!SZP)      SZP      = (uint8_t*)malloc(256);
+    if (!SZHV_inc) SZHV_inc = (uint8_t*)malloc(256);
+    if (!SZHV_dec) SZHV_dec = (uint8_t*)malloc(256);
 
     if (!SZ || !SZ_BIT || !SZP || !SZHV_inc || !SZHV_dec)
         return 0;
@@ -4033,6 +4048,10 @@ void z80_reset(void *param)
 {
 	Z80_DaisyChain *daisy_chain = (Z80_DaisyChain *)param;
 	int i, p;
+
+	if (!z80_allocate_flag_tables())
+		return;
+
 #if BIG_FLAGS_ARRAY
 	if( !SZHVC_add || !SZHVC_sub )
     {
@@ -4153,12 +4172,25 @@ void z80_reset(void *param)
 
 void z80_exit(void)
 {
+	if (SZ) free(SZ);
+	SZ = 0;
+	if (SZ_BIT) free(SZ_BIT);
+	SZ_BIT = 0;
+	if (SZP) free(SZP);
+	SZP = 0;
+	if (SZHV_inc) free(SZHV_inc);
+	SZHV_inc = 0;
+	if (SZHV_dec) free(SZHV_dec);
+	SZHV_dec = 0;
 #if BIG_FLAGS_ARRAY
 	if (SZHVC_add) free(SZHVC_add);
     SZHVC_add = 0;
 	if (SZHVC_sub) free(SZHVC_sub);
     SZHVC_sub = 0;
 #endif
+	free(s_z80);
+	s_z80 = NULL;
+	Z80_Context = NULL;
 }
 
 /****************************************************************************
@@ -4201,6 +4233,9 @@ void z80_burn(int cycles)
  ****************************************************************************/
 unsigned z80_get_context (void *dst)
 {
+	if (!z80_allocate_context())
+		return 0;
+
 	if( dst )
 	    *(Z80_Regs*)dst = Z80;
 	return sizeof(Z80_Regs);
@@ -4211,7 +4246,7 @@ unsigned z80_get_context (void *dst)
  ****************************************************************************/
 void z80_set_context (void *src)
 {
-	if( src )
+	if( src && z80_allocate_context() )
 		Z80 = *(Z80_Regs*)src;
 }
 

@@ -27,8 +27,8 @@ t_input input;
 
 struct
 {
-    char reg[64];
-}ym2413;
+    char *reg;
+} ym2413;
 
 void emu_system_init(int rate)
 {
@@ -49,6 +49,9 @@ void emu_system_init(int rate)
 
     /* Clear emulated button state */
     memset(&input, 0, sizeof(t_input));
+
+    ym2413.reg = malloc(64);
+    if (ym2413.reg) memset(ym2413.reg, 0, 64);
 }
 
 void audio_init(int rate)
@@ -106,11 +109,17 @@ void system_shutdown(void)
     tms_shutdown();
     vdp_shutdown_vram();
     sms_shutdown_ram();
+    z80_exit();
 
     if(snd.enabled)
     {
 //        OPLL_delete(opll);
 //        OPLL_close();
+    }
+
+    if (ym2413.reg) {
+        free(ym2413.reg);
+        ym2413.reg = NULL;
     }
 }
 
@@ -142,6 +151,8 @@ void system_reset(void)
 
 void system_save_state(void *fd)
 {
+    Z80_Regs z80_context = {0};
+
     /* Save VDP context */
     fwrite(&vdp, sizeof(t_vdp), 1, fd);
 
@@ -149,11 +160,12 @@ void system_save_state(void *fd)
     fwrite(&sms, sizeof(t_sms), 1, fd);
 
     /* Save Z80 context */
-    fwrite(Z80_Context, sizeof(Z80_Regs), 1, fd);
+    z80_get_context(&z80_context);
+    fwrite(&z80_context, sizeof(Z80_Regs), 1, fd);
     fwrite(&after_EI, sizeof(int), 1, fd);
 
     /* Save YM2413 registers */
-    fwrite(&ym2413.reg[0], 0x40, 1, fd);
+    if (ym2413.reg) fwrite(ym2413.reg, 0x40, 1, fd);
 
     /* Save SN76489 context */
    // fwrite(&sn[0], sizeof(t_SN76496), 1, fd);
@@ -164,6 +176,7 @@ void system_load_state(void *fd)
 {
     int i;
     uint8 reg[0x40];
+    Z80_Regs z80_context;
 
     /* Initialize everything */
     cpu_reset();
@@ -176,11 +189,13 @@ void system_load_state(void *fd)
     fread(&sms, sizeof(t_sms), 1, fd);
 
     /* Load Z80 context */
-    fread(Z80_Context, sizeof(Z80_Regs), 1, fd);
+    fread(&z80_context, sizeof(Z80_Regs), 1, fd);
+    z80_set_context(&z80_context);
     fread(&after_EI, sizeof(int), 1, fd);
 
     /* Load YM2413 registers */
     fread(reg, 0x40, 1, fd);
+    if (ym2413.reg) memcpy(ym2413.reg, reg, 0x40);
 
     /* Load SN76489 context */
     //fread(&sn[0], sizeof(t_SN76496), 1, fd);
@@ -270,8 +285,6 @@ void ym2413_write(int chip, int offset, int data)
 //    else
 //        latch = data;
 }
-
-
 
 
 
