@@ -6,27 +6,31 @@
 ![NGP emulator screen captures on the M5Stack Cardputer](images/ngp_emulator_s.jpg)
 ![Megadrive emulator screen captures on the M5Stack Cardputer](images/megadrive_emulator_s.jpg)
 
-Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Snes9x](https://github.com/snes9xgit/snes9x), [Smsplus](https://github.com/ducalex/retro-go/tree/master/retro-core/components/smsplus), [Race](https://github.com/libretro/RACE), [Gwenesis](https://github.com/bzhxx/gwenesis), [Oswan](https://github.com/alekmaul/oswan), [GnuBoy](https://github.com/rofl0r/gnuboy), [Handy](https://github.com/libretro/libretro-handy), [PCE-GO](https://github.com/ducalex/retro-go/tree/master/retro-core/components/pce-go), [Stella](https://stella-emu.github.io/) and [Pro-System](https://github.com/libretro/prosystem-libretro). 
+Powered by [Nofrendo](https://github.com/moononournation/arduino-nofrendo), [Snes9x](https://github.com/snes9xgit/snes9x), [Smsplus](https://github.com/ducalex/retro-go/tree/master/retro-core/components/smsplus), [Race](https://github.com/libretro/RACE), [Gwenesis](https://github.com/bzhxx/gwenesis), [Oswan](https://github.com/alekmaul/oswan), [GnuBoy](https://github.com/rofl0r/gnuboy), [Handy](https://github.com/libretro/libretro-handy), [PCE-GO](https://github.com/ducalex/retro-go/tree/master/retro-core/components/pce-go), [Stella](https://stella-emu.github.io/), [Pro-System](https://github.com/libretro/prosystem-libretro), [fMSX](https://fms.komkon.org/fMSX/) and [Arnold](https://github.com/gameblabla/arnold_gcw0). 
 
-All cores were optimized to run within a memory footprint of **under 256 KB of RAM**, with particular emphasis on **minimizing both RAM and flash usage**. All 12 cores are packed **into just 2.5 MB of flash**, and no RAM is allocated for a core until it is actually launched.
+All cores were optimized to run within a memory footprint of **under 256 KB of RAM**, with particular emphasis on **minimizing both RAM and flash usage**. All 13 cores are packed **into just 2.5 MB of flash**, and no RAM is allocated for a core until it is actualloy launched.
 
  Console           | Sound | Video | Save | Speed | All Games  | Notes |
 |-------------------|--------|--------|---------------|-------------|-------------------|--------|
-| **NES**           | ✅ | ✅ | ✅ | ✅ | ✅ | Few mappers issues in some games |
-| **Game Boy**      | ✅ | ✅ | ✅ | ✅ | ✅ | Mono/Color support, Fully compatible |
-| **Master System** | ✅ | ✅ | ✅ | ✅ | ✅ | Fully compatible |
-| **Game Gear**     | ✅ | ✅ | ✅ | ✅ | ✅ | Fully compatible |
-| **Mega Drive**    | ✅ | ✅ | ✅ | ✅ | ✅ | Some slowdown and not accurate sound in heavy titles |
-| **Neo Geo Pocket**| ✅ | ✅ | ✅ | ✅ | ✅ | Mono/color support. Some slowdown in heavy titles |
+| **NES**           | ✅ | ✅ | ✅  | ✅ | ✅ | Few mappers issues in some games |
+| **Game Boy**      | ✅ | ✅ | ✅  | ✅ | ✅ | Mono/Color support, Fully compatible |
+| **Master System** | ✅ | ✅ | ✅  | ✅ | ✅ | Fully compatible |
+| **Game Gear**     | ✅ | ✅ | ✅  | ✅ | ✅ | Fully compatible |
+| **SG-1000**       | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible  |
+| **Mega Drive**    | ✅ | ✅ | ✅  | ✅ | ✅ | Some slowdown and not accurate sound in heavy titles |
+| **Neo Geo Pocket**| ✅ | ✅ | ✅  | ✅ | ✅ | Mono/color support. Some slowdown in heavy titles |
+| **ColecoVision**  | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible  |
 | **PC Engine**     | ✅ | ✅ | N/A | ✅ | ✅ | Fully compatible |
-| **Atari 2600**    | ✅ | ✅ | N/A | ✅ | ✅ | Few mappers not supported |
+| **MSX**           | ✅ | ✅ | ✅  | ✅ | ✅ | Fully compatible (MSX1 games only)|
+| **Atari 2600**    | ✅ | ✅ | N/A | ✅ | ✅ | Few cart mappers not supported |
 | **Atari 7800**    | ✅ | ✅ | N/A | ⚠️ | ✅ | Not full speed in some games |
-| **Lynx**          | ✅ | ✅ | ⚠️ | ✅ | ✅ | Some slowdown in heavy titles, Sound issues in some games  |
-| **WonderSwan**    | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | Mono/color support, not fullspeed (75FPS) in most games  |
-| **Super NES**     | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
+| **Lynx**          | ✅ | ✅ | ⚠️  | ✅ | ✅ | Some slowdown in heavy titles, Sound issues in some games  |
+| **GX4000**        | ✅ | ✅ | N/A | ✅  | ⚠️ | Some emulation issues in some games |
+| **WonderSwan**    | ✅ | ✅ | ✅  | ⚠️ | ⚠️ | Mono/color support, not fullspeed (75FPS) in most games  |
+| **Super NES**     | ⚠️ | ✅ | ✅  | ⚠️ | ⚠️ | Experimental, not enough RAM for a full featured SNES  |
 
 
-It runs **`.nes` `.gb` `.gbc` `.sms` `.gg` `.lnx` `.a26` `.a78` `.pce` `.md` `.ngc` `.ngp` `.ws` `.wsc` `.sfc`ROM files from the SD**.
+It runs **`.nes` `.gb` `.gbc` `.sms` `.gg` `.sg` `.md` `.ngc` `.ngp` `.col` `.pce` `.mx1` `.rom` `.a26` `.a78` `.lnx` `.cpr` `.ws` `.wsc` `.sfc`  ROM files from the SD**.
 
 > **Make sure your ROMs are uncompressed** (not .zip, .7z, or .rar).
 
@@ -53,8 +57,11 @@ The built-in **Cardputer keyboard** is used for all controls:
 | 🔍 Zoom + | **Fn + →**| Zoom in |
 | 🔘 Quit Game | **G0 (hold 1 s)** | Go back to menu |
 
-The `j` key is also bound as Button A to allow an alternative layout for player preference.
-The `z` key is also bound as Arrow Down to allow the use of a D-PAD.
+> The `j` key is also bound as Button A to allow an alternative layout for player preference.
+
+> The `z` key is also bound as Arrow Down to allow the use of a D-PAD.
+
+> On the MSX emulator, press `FN+key` to type normal keyboard keys instead of joystick inputs.
 
 ## M5Stack Joystick
 
