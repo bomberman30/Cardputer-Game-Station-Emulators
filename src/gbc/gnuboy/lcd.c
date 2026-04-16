@@ -467,8 +467,8 @@ void gb_lcd_reset(bool hard)
 	if (hard)
 	{
 		memset(VBANKS, 0, 2 * 8192);
-		memset(&GB.oam, 0, 256);
-		memset(&GB.pal, 0, 128);
+		memset(GB.oam, 0, 256);
+		memset(GB.pal, 0, 128);
 	}
 
 	memset(BUF, 0, sizeof(BUF));

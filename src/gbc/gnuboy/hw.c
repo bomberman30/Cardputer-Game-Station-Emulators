@@ -212,8 +212,8 @@ bool gb_hw_init(void)
     hw.vbanks   = calloc(2, 8192);
     hw.ioregs   = calloc(256, 1);
 
-    // hw.oam  = calloc(256, 1);
-    // hw.pal  = calloc(128, 1);
+	hw.oam  = calloc(256, 1);
+	hw.pal  = calloc(128, 1);
 
     hw.video.palette = malloc(64 * sizeof(uint16_t));
 
@@ -222,14 +222,13 @@ bool gb_hw_init(void)
     hw.cart = &cart;
     gb_lcd_init();
 
-    if (!hw.rambanks || !hw.vbanks || !hw.ioregs ||
-        !hw.oam || !hw.pal || !hw.rmap || !hw.wmap ||
-        !hw.video.palette || !hw.cpu || !hw.snd)
-    {
-        return false;
-    }
-
-    return true;
+	if (!hw.rambanks || !hw.vbanks || !hw.ioregs ||
+		!hw.oam || !hw.pal || !hw.rmap || !hw.wmap ||
+		!hw.video.palette || !hw.cpu || !hw.snd)
+	{
+		return false;
+	}
+	return true;
 }
 
 
@@ -734,4 +733,17 @@ byte gb_hw_read(unsigned a)
 		// }
 	}
 	return 0xFF;
+}
+
+void gb_hw_cleanup(void)
+{
+    if (GB.oam) {
+        free(GB.oam);
+        GB.oam = NULL;
+    }
+    if (GB.pal) {
+        free(GB.pal);
+        GB.pal = NULL;
+    }
+    gb_sound_cleanup();
 }

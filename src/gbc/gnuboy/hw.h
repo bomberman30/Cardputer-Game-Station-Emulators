@@ -1,3 +1,4 @@
+void gb_hw_cleanup(void);
 #pragma once
 
 #define IF_VBLANK 0x01
@@ -210,8 +211,8 @@ typedef struct
 	byte (*rambanks)[4096]; // [8]
 	byte (*vbanks)[8192]; // [2]
 	byte *ioregs;
-	byte oam[256];
-	byte pal[128];
+	byte *oam;
+	byte *pal;
 	byte *rmap[0x10];
 	byte *wmap[0x10];
 	byte *bios;

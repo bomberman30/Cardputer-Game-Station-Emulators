@@ -153,6 +153,7 @@ void gnuboy_free_bios(void)
 {
 	free(hw.bios);
 	hw.bios = NULL;
+	gb_hw_cleanup();
 }
 
 
