@@ -2414,9 +2414,10 @@ void    CPC_Finish(void)
 	Cassette_Finish();
 #endif
 
-        AudioEvent_Finish();
+		AudioEvent_Finish();
+		PAL_Finish();
 
-        Cartridge_Remove();
+		Cartridge_Remove();
 
         ASIC_Finish();
 

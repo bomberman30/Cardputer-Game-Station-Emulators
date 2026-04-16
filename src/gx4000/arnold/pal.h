@@ -17,7 +17,10 @@ typedef struct
 	unsigned char	*RomConfigWrite[8];
 } PAL16L8;
 
+extern PAL16L8 *PAL_Context;
+
 void	PAL_Initialise(void);
+void	PAL_Finish(void);
 void	PAL_Reset(void);
 int		PAL_GetRamConfiguration(void);
 void	PAL_WriteConfig(int Function);

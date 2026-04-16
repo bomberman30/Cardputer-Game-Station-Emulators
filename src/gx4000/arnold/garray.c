@@ -29,7 +29,6 @@
 #include "memory.h"
 #include "pal.h"
 
-extern PAL16L8 PAL;
 extern unsigned char *pUpperRom;
 extern unsigned char *pLowerRom;
 extern unsigned long LowerRomIndex;
@@ -380,12 +379,15 @@ void	GateArray_RethinkMemory(void)
 #endif
 	unsigned char RomConfiguration = GateArray_State.RomConfiguration;
 
-    pWriteRamPtr[0] = pWriteRamPtr[1] = pReadRamPtr[0] = pReadRamPtr[1] = PAL.pChosenRamConfig[0];
-	pWriteRamPtr[2] = pWriteRamPtr[3] = pReadRamPtr[2] = pReadRamPtr[3] = PAL.pChosenRamConfig[1];
-	pWriteRamPtr[4] = pWriteRamPtr[5] = pReadRamPtr[4] = pReadRamPtr[5] = PAL.pChosenRamConfig[2];
+	if (!PAL_Context || !PAL_Context->pChosenRamConfig)
+		return;
+
+    pWriteRamPtr[0] = pWriteRamPtr[1] = pReadRamPtr[0] = pReadRamPtr[1] = PAL_Context->pChosenRamConfig[0];
+	pWriteRamPtr[2] = pWriteRamPtr[3] = pReadRamPtr[2] = pReadRamPtr[3] = PAL_Context->pChosenRamConfig[1];
+	pWriteRamPtr[4] = pWriteRamPtr[5] = pReadRamPtr[4] = pReadRamPtr[5] = PAL_Context->pChosenRamConfig[2];
 
 	{
-		unsigned char *pAddrC000 = PAL.pChosenRamConfig[3];
+		unsigned char *pAddrC000 = PAL_Context->pChosenRamConfig[3];
 
 		pWriteRamPtr[6] = pWriteRamPtr[7] = pAddrC000;
 
@@ -686,5 +688,4 @@ void	GateArray_UpdateColours(void)
         Render_SetColour(&DisplayColours[HwColourIndex],/*Red,Green,Blue,*/i);
 	}
 }
-
 
